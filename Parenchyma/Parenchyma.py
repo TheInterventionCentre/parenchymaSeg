@@ -39,6 +39,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   """
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
+    self.MasterNode = None
+    self.LabelNode = None
     #self.editUtil = EditorLib.EditUtil.EditUtil()
     #self.localParEditorWidget = None
        
@@ -130,19 +132,21 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onSelect(self):
     self.applyButton.enabled = self.inputSelector.currentNode()
 
-  def onApplyButton(self):
+  def onSelectButton(self):
     logic = ParenchymaLogic()
-    print("Run the algorithm")
-    logic.run(self.inputSelector.currentNode())
+    self.masterNode = self.inputSelector.currentNode()
+    print(self.inputSelector.currentNode())
 
   def onLabelButton(self):
     logic = ParenchymaLogic()
-    logic.createLabelMap(self.inputSelector.currentNode())
+    self.labelNode = logic.createLabelMap(self.inputSelector.currentNode())
+    print(self.labelNode)
 
-  def onSelectButton(self):
+  def onApplyButton(self):
     logic = ParenchymaLogic()
+    print("Run the algorithm")
+    logic.run(self.masterNode, self.labelNode)
 
-    print(self.inputSelector.currentNode())
 
   
 
@@ -160,8 +164,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
-  
-
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
     returns true if the passed in volume
@@ -175,45 +177,41 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
-  def run(self,VolumeNode1):
+  def run(self,masterNode,labelNode):
     """
     Run the actual algorithm
     """
     self.delayDisplay('Running the aglorithm')
+
+    #
+    # get the drawn mask
+    #
+    
+    # check there is a label map
+    slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode)
+
+    
+    
     return True
 
-  def createLabelMap(self,volumeNode):
-    self.delayDisplay(volumeNode)
-    masterName = volumeNode.GetName()
+  def createLabelMap(self,masterNode):
+    self.delayDisplay('Creating label map')
+    masterName = masterNode.GetName()
     mergeName = masterName + "-label"
 
     self.delayDisplay(mergeName)
-    merge = slicer.modules.volumes.logic().CreateAndAddLabelVolume( slicer.mrmlScene, volumeNode, mergeName )
+    merge = slicer.modules.volumes.logic().CreateAndAddLabelVolume( slicer.mrmlScene, masterNode, mergeName )
     #self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(volumeNode, merge))
     labelColorTable = slicer.util.getNode('GenericAnatomyColors')
     merge.GetDisplayNode().SetAndObserveColorNodeID( labelColorTable.GetID() )
 
     # make the source node the active background, and the label node the active label
     selectionNode = slicer.app.applicationLogic().GetSelectionNode()
-    selectionNode.SetReferenceActiveVolumeID( volumeNode.GetID() )
+    selectionNode.SetReferenceActiveVolumeID( masterNode.GetID() )
     selectionNode.SetReferenceActiveLabelVolumeID( merge.GetID() )
     slicer.app.applicationLogic().PropagateVolumeSelection(0)
-        
-    #self.delayDisplay(volumeNode)
-    #volumesLogic = slicer.modules.volumes.logic()
-    #LM = volumesLogic.CreateAndAddLabelVolume( slicer.mrmlScene, volumeNode, "newLabelMap" )
-    #self.delayDisplay(LM)
-    #self.delayDisplay(LM.GetID())
 
-
-    #selectionNode = slicer.vtkMRMLSelectionNode()
-    #self.delayDisplay(LM.GetID())
-    #selectionNode.SetReferenceActiveVolumeID( LM.GetID() )
-    #slicer.app.applicationLogic().PropagateVolumeSelection(0)
-
-    #SetActiveVolumeNode(LM)
-
-    return True
+    return merge
       
 
 
@@ -252,7 +250,7 @@ class ParenchymaTest(ScriptedLoadableModuleTest):
 
     self.delayDisplay("Starting the test")
     #
-    # first, get some data
+    # first, get some data 
     #
     import urllib
     downloads = (
