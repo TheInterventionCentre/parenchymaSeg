@@ -39,8 +39,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   """
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
-    self.MasterNode = None
-    self.LabelNode = None
+    self.masterNode = None
+    self.labelNode = None
     #self.editUtil = EditorLib.EditUtil.EditUtil()
     #self.localParEditorWidget = None
        
@@ -144,7 +144,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onApplyButton(self):
     logic = ParenchymaLogic()
-    print("Run the algorithm")
     logic.run(self.masterNode, self.labelNode)
 
 
@@ -182,15 +181,17 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     Run the actual algorithm
     """
     self.delayDisplay('Running the aglorithm')
+    # check there is a label map
+    self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode))
 
     #
     # get the drawn mask
     #
-    
-    # check there is a label map
-    slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode)
+    #self.delayDisplay(dir(labelNode))
+    self.delayDisplay(type(labelNode))
+    newArray = slicer.util.array(labelNode.GetID())
+    self.delayDisplay(newArray)
 
-    
     
     return True
 
