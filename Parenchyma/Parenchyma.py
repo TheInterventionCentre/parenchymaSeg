@@ -1,6 +1,7 @@
 import os
 import unittest
 from __main__ import vtk, qt, ctk, slicer
+import numpy
 import EditorLib
 import Editor
 from slicer.ScriptedLoadableModule import *
@@ -135,12 +136,12 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onSelectButton(self):
     logic = ParenchymaLogic()
     self.masterNode = self.inputSelector.currentNode()
-    print(self.inputSelector.currentNode())
+    #print(self.inputSelector.currentNode())
 
   def onLabelButton(self):
     logic = ParenchymaLogic()
     self.labelNode = logic.createLabelMap(self.inputSelector.currentNode())
-    print(self.labelNode)
+    #print(self.labelNode)
 
   def onApplyButton(self):
     logic = ParenchymaLogic()
@@ -180,18 +181,92 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     """
     Run the actual algorithm
     """
-    self.delayDisplay('Running the aglorithm')
+    self.delayDisplay('Running the algorithm')
     # check there is a label map
     self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode))
-
+    # TODO: do not run algorithm if there is no label map
+    
     #
     # get the drawn mask
     #
-    #self.delayDisplay(dir(labelNode))
-    self.delayDisplay(type(labelNode))
     newArray = slicer.util.array(labelNode.GetID())
-    self.delayDisplay(newArray)
+    newArray2 = slicer.util.array(masterNode.GetID())
+    self.delayDisplay(newArray.shape)
+    self.delayDisplay(newArray2.shape)
+    # TODO: compare dimensions to check they match
 
+    # find the levels where there are annotations
+    xAnn = []
+    for i in range(0,newArray.shape[0]):
+      #print(numpy.max(numpy.max(newArray[i,:,:])))
+      if numpy.max(newArray[i,:,:]) > 0:
+        xAnn.append(i)
+        print(i)
+
+    for i in range(0,len(xAnn)):
+      for j in range(0,newArray.shape[1]):
+        for k in range(0,newArray.shape[2]):
+          # for each pixel that is not a part of the annotation check...
+          if newArray[xAnn[i],j,k] == 0:
+            # go +/- in j from the pixel
+            countJPlus = 0
+            countJMinus = 0
+            insideJLine = False
+            for j2 in range(j,newArray.shape[1]):
+              if newArray[xAnn[i],j2,k] > 0:
+                # inside line
+                if insideJLine == False:
+                  countJPlus += 1
+                insideJLine = True
+              else:
+                # == 0, outside line
+                insideJLine = False
+            for j2 in range(0,j):
+              if newArray[xAnn[i],j2,k] > 0:
+                # inside line
+                if insideJLine == False:
+                  countJMinus += 1
+                insideJLine = True
+              else:
+                # == 0, outside line
+                insideJLine = False
+            # go +/- in k from the pixel
+            countKPlus = 0
+            countKMinus = 0
+            insideKLine = False
+            for k2 in range(j,newArray.shape[2]):
+              if newArray[xAnn[i],j,k2] > 0:
+                # inside line
+                if insideKLine == False:
+                  countKPlus += 1
+                insideKLine = True
+              else:
+                # == 0, outside line
+                insideKLine = False
+            for k2 in range(0,j):
+              if newArray[xAnn[i],j,k2] > 0:
+                # inside line
+                if insideKLine == False:
+                  countKMinus += 1
+                insideKLine = True
+              else:
+                # == 0, outside line
+                insideKLine = False
+          # if there are an odd # of lines crossed on either side
+          #print("counts ",countJPlus," ",countJMinus," ",countKPlus," ",countKMinus)
+          # area is inside the circle / mask
+          areaInsideMask = []
+          if countJPlus > 0 and countJMinus > 0 and countKPlus > 0 and countKMinus > 0:
+            areaInsideMask.append([xAnn[i],j,k])
+            print("coord ",xAnn[i]," ",j," ",k)
+
+          # else
+              # do nothing since pixel is inside the annotation (>0) 
+               
+
+    # outside loops
+    
+                 
     
     return True
 
