@@ -1,4 +1,5 @@
 import numpy
+
 def segment(array):
   isinside = numpy.zeros(array.shape,'float')
   for j in range(0,array.shape[0]):
@@ -50,12 +51,11 @@ def segment(array):
             # == 0, outside line
             insideKLine = False
         # if there are an odd # of lines crossed on either side
-        #print("counts ",countJPlus," ",countJMinus," ",countKPlus," ",countKMinus)
-        # area is inside the circle / mask
         areaInsideMask = []
-        if countJPlus > 0 and countJMinus > 0 and countKPlus > 0 and countKMinus > 0:
+        if (countJPlus % 2 == 1 and countJMinus % 2 == 1 and countKPlus % 2 == 1) or (countJMinus % 2 == 1 and countKPlus % 2 == 1 and countKMinus % 2 == 1) or (countKPlus % 2 == 1 and countKMinus % 2 == 1 and countJPlus % 2 == 1) or (countKMinus % 2 == 1 and countJPlus % 2 == 1 and countJMinus % 2 == 1):
+          # area is inside the circle / mask
           isinside[j,k] = 1
-          print("coord ",j," ",k)
+          print("coord ",j,k)
 
       # else
           # do nothing since pixel is inside the annotation (>0) 
