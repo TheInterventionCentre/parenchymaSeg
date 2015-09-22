@@ -2,6 +2,7 @@ import os
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 import numpy
+import pickle
 import EditorLib
 import Editor
 import ParLib.Algorithms
@@ -196,6 +197,9 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     #
     newArray = slicer.util.array(labelNode.GetID())
     newArray2 = slicer.util.array(masterNode.GetID())
+    pickle.dump( newArray, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_labelNode.p", "wb"))
+    pickle.dump( newArray2, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_masterNode.p", "wb"))
+    
     self.delayDisplay(newArray.shape)
     self.delayDisplay(newArray2.shape)
     # TODO: compare dimensions to check they match
@@ -203,7 +207,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     # find the levels where there are annotations
     for i in range(0,newArray.shape[0]):
       if numpy.max(newArray[i,:,:]) > 0:
-        print(i)
+        print('in z:', i)
         # send the array of the one level
         array = newArray[i,:,:]            
         isinside = ParLib.Algorithms.segment(array)

@@ -52,10 +52,10 @@ def segment(array):
             insideKLine = False
         # if there are an odd # of lines crossed on either side
         areaInsideMask = []
-        if (countJPlus % 2 == 1 and countJMinus % 2 == 1 and countKPlus % 2 == 1) or (countJMinus % 2 == 1 and countKPlus % 2 == 1 and countKMinus % 2 == 1) or (countKPlus % 2 == 1 and countKMinus % 2 == 1 and countJPlus % 2 == 1) or (countKMinus % 2 == 1 and countJPlus % 2 == 1 and countJMinus % 2 == 1):
+        if (countJPlus % 2 == 1 and countJMinus % 2 == 1 and countKPlus % 2 == 1 and countKMinus > 0) or (countJMinus % 2 == 1 and countKPlus % 2 == 1 and countKMinus % 2 == 1 and countJPlus > 0) or (countKPlus % 2 == 1 and countKMinus % 2 == 1 and countJPlus % 2 == 1 and countJMinus > 0) or (countKMinus % 2 == 1 and countJPlus % 2 == 1 and countJMinus % 2 == 1 and countKPlus > 0):
           # area is inside the circle / mask
           isinside[j,k] = 1
-          print("coord ",j,k)
+          #print("coord ",j,k)
 
       # else
           # do nothing since pixel is inside the annotation (>0) 

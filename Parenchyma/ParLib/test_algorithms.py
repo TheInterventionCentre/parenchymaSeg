@@ -1,5 +1,7 @@
 import numpy
 import Algorithms
+import pickle
+import matplotlib.pylab as plt
 
 array = numpy.zeros([12,12],'float')
 for i in range(3,10):
@@ -26,14 +28,16 @@ for i in range(7,10):
 for i in range(2,10):
   # far right side
   array[i,10] = 1
-
-
-
-
   
 print array
-
 
 isinside = Algorithms.segment(array)
 
 print isinside
+
+
+labelNode = pickle.load( open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_labelNode1.p", "rb"))
+masterNode = pickle.load( open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_masterNode1.p", "rb"))
+
+plt.imshow(labelNode[51,:,:])
+plt.show()
