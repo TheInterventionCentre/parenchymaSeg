@@ -44,7 +44,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.masterNode = None
     self.labelNode = None
     #self.editUtil = EditorLib.EditUtil.EditUtil()
-    #self.localParEditorWidget = None
+    self.localParEditorWidget = None
        
   def setup(self):
     
@@ -146,8 +146,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onApplyButton(self):
     logic = ParenchymaLogic()
-    self.labelNode = logic.run(self.masterNode, self.labelNode)
-
+    logic.run(self.masterNode, self.labelNode)
+    
 
   
 
@@ -164,6 +164,10 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+  #def __init__(self, parent = None):
+    #ScriptedLoadableModuleLogic.__init__(self, parent)
+    #self.editPaint = EditorLib.PaintEffectOptions()
+
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -208,9 +212,11 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
             if isinside[j,k] == 1:
-              newArray[i,j,k] = 1
-    
-    return newArray
+              newArray[i,j,k] = 21
+              #self.editPaint.paintPixel(j,k)
+
+    labelNode.Modified()
+    self.delayDisplay('Algorithm done')
 
   def createLabelMap(self,masterNode):
     self.delayDisplay('Creating label map')
