@@ -3,9 +3,10 @@ import unittest
 from __main__ import vtk, qt, ctk, slicer
 import numpy
 import pickle
-import EditorLib
-import Editor
+#import EditorLib
+#import Editor
 import ParLib.Algorithms
+import ParLib.Paint
 from slicer.ScriptedLoadableModule import *
 
 #
@@ -44,8 +45,9 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.masterNode = None
     self.labelNode = None
+    self.paint = None
     #self.editUtil = EditorLib.EditUtil.EditUtil()
-    self.localParEditorWidget = None
+    #self.localParEditorWidget = None
        
   def setup(self):
     
@@ -93,6 +95,15 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.selectButton)
 
     #
+    # Paint Button
+    #
+    self.paintButton = qt.QPushButton("Paint")
+    self.paintButton.toolTip = "Turn on paint."
+    self.paintButton.enabled = True
+    self.paintButton.checkable = True
+    parametersLayout.addRow(self.paintButton)
+
+    #
     # Stuff for drawing
     #
     self.labelButton = qt.QPushButton("Create label map")
@@ -111,14 +122,15 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
+    self.paintButton.connect('clicked(bool)', self.onPaintButton)
     self.labelButton.connect('clicked(bool)', self.onLabelButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Creates and adds the custom Editor Widget to the module
-    self.localParEditorWidget = ParEditorWidget(parent=self.parent, showVolumesFrame=False)
-    self.localParEditorWidget.setup()
-    self.localParEditorWidget.enter()
+    #self.localParEditorWidget = ParEditorWidget(parent=self.parent, showVolumesFrame=False)
+    #self.localParEditorWidget.setup()
+    #self.localParEditorWidget.enter()
 
 
     # Add vertical spacer
@@ -134,11 +146,25 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onSelect(self):
     self.applyButton.enabled = self.inputSelector.currentNode()
+    self.masterNode = self.inputSelector.currentNode()
 
   def onSelectButton(self):
     logic = ParenchymaLogic()
     self.masterNode = self.inputSelector.currentNode()
     #print(self.inputSelector.currentNode())
+
+  def onPaintButton(self):
+    #interactor = slicer.qMRMLSliceView().interactorStyle().GetInteractor()
+    #sw = slicer.qMRMLSliceWidget()
+    #swi = sw.interactorStyle()
+    #interactor = swi.GetInteractor()
+
+    layoutManager = slicer.app.layoutManager()
+    viewWidget = layoutManager.sliceWidget('Red')
+    sliceWidget = viewWidget.sliceView()
+    interactor = sliceWidget.interactorStyle().GetInteractor()
+
+    self.paint = ParLib.Paint.Paint(interactor)
 
   def onLabelButton(self):
     logic = ParenchymaLogic()
@@ -301,7 +327,7 @@ class ParenchymaTest(ScriptedLoadableModuleTest):
     self.delayDisplay('Test passed!')
 
 
-class ParEditorWidget(Editor.EditorWidget):
+#class ParEditorWidget(Editor.EditorWidget):
   """
   def createEditBox(self):
     
@@ -313,7 +339,7 @@ class ParEditorWidget(Editor.EditorWidget):
     self.toolsBox = ParEditBox(self.editBoxFrame, optionsFrame=self.effectOptionsFrame)
     """
     
-class ParEditBox(EditorLib.EditBox):
+#class ParEditBox(EditorLib.EditBox):
   """
   # create the edit box
   def create(self):
