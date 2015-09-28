@@ -1,0 +1,22 @@
+language: python
+python:
+   - "2.7_with_system_site_packages"
+
+before_install:
+   - "export DISPLAY=:99.0"
+   - "sh -e /etc/init.d/xvfb start"
+
+install:
+   - sudo apt-get install -qq python-numpy python-scipy python-matplotlib
+
+script:
+   - pip install coveralls
+   - nosetests --with-coverage --cover-erase --cover-package=Parenchyma
+
+after_success:
+   - coveralls
+
+env:
+ - DIST=lucid
+
+os: linux
