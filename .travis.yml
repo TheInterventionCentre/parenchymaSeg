@@ -12,7 +12,7 @@ install:
 script:
    - pip install coveralls
    - cd Parenchyma/ParLib/
-   - nosetests --with-coverage --cover-erase --cover-package=Parenchyma
+   - nosetests --with-coverage --cover-erase
 
 after_success:
    - coveralls
