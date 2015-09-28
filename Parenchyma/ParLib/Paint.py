@@ -11,7 +11,8 @@ class Paint:
     print("Initializing paint")
     self.painting = False
     self.parent = parent
-    #= self.sliceView.interactorStyle().GetInteractor()
+    self.crosshairNode = slicer.util.getNode('Crosshair') 
+    self.crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
 
     for e in ["LeftButtonPressEvent", "LeftButtonReleaseEvent", "MouseMoveEvent"]:
       print("Adding observer to interactor: " + e)
@@ -19,11 +20,25 @@ class Paint:
     cursorPosition = qt.QCursor().pos()
     print(cursorPosition.x(), cursorPosition.y())
 
+
   def __del__(self):
     super(Paint,self).__del__()
+    self.removeObs()
+
+  def removeObs(self):
+    #self.parent.RemoveAllObservers()
+    for e in ["LeftButtonPressEvent", "LeftButtonReleaseEvent", "MouseMoveEvent"]:
+      print("Removing observer from interactor: " + e)
+      self.parent.RemoveObserver(e, self.processEvent)
+      
+  def onMouseMoved(self, observer, eventid):
+    #print("onMouseMoved")  
+    ras=[0,0,0]
+    self.crosshairNode.GetCursorPositionRAS(ras)
+    print(ras)
 
   def processEvent(self, caller=None, event=None):
-    print("processEvent")
+    #print("processEvent")
     if event == "LeftButtonPressEvent":
       self.painting = True
     elif event == "LeftButtonReleaseEvent":
@@ -36,16 +51,16 @@ class Paint:
         #w = self.mainFrame.width
         #h = self.mainFrame.height
         # self.mainFrame.pos = qt.QPoint(cursorPosition.x() - w/2, cursorPosition.y() - h/2)
-        print(cursorPosition.x(), cursorPosition.y())
-        #treeView.mouseMoveEvent.
+        #print(cursorPosition.x(), cursorPosition.y())
         #xy = self.interactor.GetEventPosition()
         #self.paintAddPoint(xy[0], xy[1])
+
 
   def paintLabelMap(self, labelNode):
     newArray = slicer.util.array(labelNode.GetID())
     cursorPosition = qt.QCursor().pos()
-    w = self.mainFrame.width
-    h = self.mainFrame.height
+    #w = self.mainFrame.width
+    #h = self.mainFrame.height
     # self.mainFrame.pos = qt.QPoint(cursorPosition.x() - w/2, cursorPosition.y() - h/2)
     print(cursorPosition.x(), cursorPosition.y())
     

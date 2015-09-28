@@ -46,6 +46,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.masterNode = None
     self.labelNode = None
     self.paint = None
+    self.painting = False
     #self.editUtil = EditorLib.EditUtil.EditUtil()
     #self.localParEditorWidget = None
        
@@ -158,13 +159,18 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #sw = slicer.qMRMLSliceWidget()
     #swi = sw.interactorStyle()
     #interactor = swi.GetInteractor()
+    if self.painting:
+      self.painting = False
+      print("deleting paint")
+      self.paint.removeObs()
+    else:
+      self.painting = True
+      layoutManager = slicer.app.layoutManager()
+      viewWidget = layoutManager.sliceWidget('Red')
+      sliceWidget = viewWidget.sliceView()
+      interactor = sliceWidget.interactorStyle().GetInteractor()
 
-    layoutManager = slicer.app.layoutManager()
-    viewWidget = layoutManager.sliceWidget('Red')
-    sliceWidget = viewWidget.sliceView()
-    interactor = sliceWidget.interactorStyle().GetInteractor()
-
-    self.paint = ParLib.Paint.Paint(interactor)
+      self.paint = ParLib.Paint.Paint(interactor)
 
   def onLabelButton(self):
     logic = ParenchymaLogic()
