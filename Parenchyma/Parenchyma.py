@@ -314,7 +314,7 @@ class ParenchymaTest(ScriptedLoadableModuleTest):
     #
     import urllib
     downloads = (
-        ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
+        ('http://slicer.kitware.com/midas3/download?items=216203', '0.nrrd', slicer.util.loadVolume),
         )
 
     for url,name,loader in downloads:
@@ -327,7 +327,7 @@ class ParenchymaTest(ScriptedLoadableModuleTest):
         loader(filePath)
     self.delayDisplay('Finished with download and loading\n')
 
-    volumeNode = slicer.util.getNode(pattern="FA")
+    volumeNode = slicer.util.getNode(pattern="0")
     logic = ParenchymaLogic()
     self.assertTrue( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')
