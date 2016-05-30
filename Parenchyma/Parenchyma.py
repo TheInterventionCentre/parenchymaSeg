@@ -3,8 +3,9 @@ import unittest
 from __main__ import vtk, qt, ctk, slicer
 import numpy
 import pickle
-#import EditorLib
 #import Editor
+import EditorLib
+from EditorLib.EditUtil import EditUtil
 import ParLib.Algorithms
 import ParLib.Paint
 from slicer.ScriptedLoadableModule import *
@@ -46,7 +47,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.masterNode = None
     self.labelNode = None
     self.paint = None
-    self.painting = False
+    self.paintMode = False
+    self.logic = ParenchymaLogic()
     #self.editUtil = EditorLib.EditUtil.EditUtil()
     #self.localParEditorWidget = None
        
@@ -96,15 +98,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.selectButton)
 
     #
-    # Paint Button
-    #
-    self.paintButton = qt.QPushButton("Paint")
-    self.paintButton.toolTip = "Turn on paint."
-    self.paintButton.enabled = True
-    self.paintButton.checkable = True
-    parametersLayout.addRow(self.paintButton)
-
-    #
     # Stuff for drawing
     #
     self.labelButton = qt.QPushButton("Create label map")
@@ -112,6 +105,15 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.labelButton.enabled = True
     #self.labelButton.checkable = True
     parametersLayout.addRow(self.labelButton)
+
+    #
+    # Paint Button
+    #
+    self.paintButton = qt.QPushButton("Paint")
+    self.paintButton.toolTip = "Turn on paint."
+    self.paintButton.enabled = True
+    self.paintButton.checkable = True
+    parametersLayout.addRow(self.paintButton)
     
     #
     # Apply Button
@@ -133,7 +135,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #self.localParEditorWidget.setup()
     #self.localParEditorWidget.enter()
 
-
     # Add vertical spacer
     self.layout.addStretch(1)
 
@@ -154,32 +155,47 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.masterNode = self.inputSelector.currentNode()
     #print(self.inputSelector.currentNode())
 
+  def onLabelButton(self):
+    self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
+    #print(self.labelNode)
+
   def onPaintButton(self):
     #interactor = slicer.qMRMLSliceView().interactorStyle().GetInteractor()
     #sw = slicer.qMRMLSliceWidget()
     #swi = sw.interactorStyle()
     #interactor = swi.GetInteractor()
-    if self.painting:
-      self.painting = False
+    if self.paintMode:
+      self.paintMode = False
       print("deleting paint")
-      self.paint.removeObs()
+      self.painter.cleanup()
+      self.painter = None
+      #self.paint.removeObs()
     else:
-      self.painting = True
+      self.paintMode = True
       layoutManager = slicer.app.layoutManager()
       viewWidget = layoutManager.sliceWidget('Red')
       sliceWidget = viewWidget.sliceView()
       interactor = sliceWidget.interactorStyle().GetInteractor()
+      #self.paint = ParLib.Paint.Paint(interactor)
 
-      self.paint = ParLib.Paint.Paint(interactor)
+      # just in case?
+      selectionNode = slicer.app.applicationLogic().GetSelectionNode()
+      selectionNode.SetReferenceActiveVolumeID( self.masterNode.GetID() )
+      if self.labelNode == None:
+        self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
+      selectionNode.SetReferenceActiveLabelVolumeID( self.labelNode.GetID() )
+      slicer.app.applicationLogic().PropagateVolumeSelection(0)
 
-  def onLabelButton(self):
-    logic = ParenchymaLogic()
-    self.labelNode = logic.createLabelMap(self.inputSelector.currentNode())
-    #print(self.labelNode)
+      print("create paint (editor paint effect tool)")
+      lm = slicer.app.layoutManager()
+      paintEffect = EditorLib.PaintEffectOptions()
+      paintEffect.setMRMLDefaults()
+      paintEffect.__del__()
+      sliceWidget = lm.sliceWidget('Red')
+      self.painter = EditorLib.PaintEffectTool(sliceWidget)
 
   def onApplyButton(self):
-    logic = ParenchymaLogic()
-    logic.run(self.masterNode, self.labelNode)
+    self.logic.run(self.masterNode, self.labelNode)
     
 
   

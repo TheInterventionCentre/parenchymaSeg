@@ -14,6 +14,10 @@ class Paint:
     self.crosshairNode = slicer.util.getNode('Crosshair') 
     self.crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
 
+    self.myArray = []
+    #slicer.util.array(self.parent.labelNode.GetID())
+    #self.editUtil = EditorLib.EditUtil.EditUtil()
+
     for e in ["LeftButtonPressEvent", "LeftButtonReleaseEvent", "MouseMoveEvent"]:
       print("Adding observer to interactor: " + e)
       self.parent.AddObserver(e, self.processEvent, 1.0)
@@ -35,29 +39,46 @@ class Paint:
     #print("onMouseMoved")  
     ras=[0,0,0]
     self.crosshairNode.GetCursorPositionRAS(ras)
-    print(ras)
+    #print(ras)
 
   def processEvent(self, caller=None, event=None):
     #print("processEvent")
     if event == "LeftButtonPressEvent":
+      print("left button pressed")
       self.painting = True
     elif event == "LeftButtonReleaseEvent":
+      print("left button released")
       self.painting = False
     elif event == "MouseMoveEvent":
       if self.painting:
         # get the image we are currently on (z level)
         #treeView = slicer.qMRMLAnnotationTreeView()
-        cursorPosition = qt.QCursor().pos()
+        #cursorPosition = qt.QCursor().pos()
         #w = self.mainFrame.width
         #h = self.mainFrame.height
         # self.mainFrame.pos = qt.QPoint(cursorPosition.x() - w/2, cursorPosition.y() - h/2)
         #print(cursorPosition.x(), cursorPosition.y())
         #xy = self.interactor.GetEventPosition()
         #self.paintAddPoint(xy[0], xy[1])
+        print("onMouseMoved + leftbuttonPressed...")
+        ras=[0,0,0]
+        self.crosshairNode.GetCursorPositionRAS(ras)
+        self.paintAddPoint(ras)
+        #self.painter.paintAddPoint(ras[0],ras[1])
+
+  def paintAddPoint(self, ras):
+    x = ras[0]
+    y = ras[1]
+    z = ras[2]
+    self.myArray.append(ras)
+    print("add the point to array")
 
 
+  def getArray(self):
+    return self.myArray
+
+       
   def paintLabelMap(self, labelNode):
-    newArray = slicer.util.array(labelNode.GetID())
     cursorPosition = qt.QCursor().pos()
     #w = self.mainFrame.width
     #h = self.mainFrame.height

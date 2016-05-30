@@ -1,9 +1,33 @@
 import numpy
 
 def segment(array):
-  isinside = numpy.zeros(array.shape,'float')
+  maxJ = 0
+  minJ = array.shape[0]
+  maxK = 0
+  minK = array.shape[1]
+  # find biggest & smallest X and Y that are in the annotations
   for j in range(0,array.shape[0]):
     for k in range(0,array.shape[1]):
+      # part of the annotation
+      if array[j,k] != 0:
+        if j > maxJ:
+          maxJ = j
+        elif j < minJ:
+          minJ = j
+        elif k > maxK:
+          maxK = k
+        elif k < minK:
+          minK = k
+  # end of finding the boundaries
+
+  print(maxJ)
+  print(minJ)
+  print(maxK)
+  print(minK)
+  
+  isinside = numpy.zeros(array.shape,'float')
+  for j in range(minJ-1,maxJ+1):
+    for k in range(minK-1,maxK+1):
       # for each pixel that is not a part of the annotation check...
       if array[j,k] == 0:
         # go +/- in j from the pixel
