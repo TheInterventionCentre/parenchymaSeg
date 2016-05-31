@@ -245,8 +245,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     #
     newArray = slicer.util.array(labelNode.GetID())
     newArray2 = slicer.util.array(masterNode.GetID())
-    pickle.dump( newArray, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_labelNode.p", "wb"))
-    pickle.dump( newArray2, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_masterNode.p", "wb"))
+    #pickle.dump( newArray, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_labelNode.p", "wb"))
+    #pickle.dump( newArray2, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_masterNode.p", "wb"))
     
     self.delayDisplay(newArray.shape)
     self.delayDisplay(newArray2.shape)
@@ -263,7 +263,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
-            if isinside[j,k] == 1:
+            if isinside[j,k] == 0:
               newArray[i,j,k] = 21
               #self.editPaint.paintPixel(j,k)
 

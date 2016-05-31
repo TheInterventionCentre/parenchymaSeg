@@ -1,15 +1,38 @@
 import numpy
 
 def segment(array):
+
   maxJ = 0
   minJ = array.shape[0]
   maxK = 0
-  minK = array.shape[1]
-  # find biggest & smallest X and Y that are in the annotations
+  minK = array.shape[1]   
+    
+  isinside = numpy.zeros(array.shape,'float')
+  #isinside = numpy.ones(array.shape,'float')
+  
   for j in range(0,array.shape[0]):
     for k in range(0,array.shape[1]):
-      # part of the annotation
-      if array[j,k] != 0:
+      # grow out from upper left corner (which we assume to be outside)
+      # actually we essentially assume the whole left/top edge to be outside
+      # unless it is a part of the annotation
+      if array[j,k] == 0:
+        # NOT a part of the annotation
+        if j-1 < 0 or k-1 < 0:
+          # this is an edge pixel
+          isinside[j,k] = 1
+        elif isinside[j-1,k] == 1:
+          # a previous adjacent point belonged to the outside
+          isinside[j,k] = 1
+        elif isinside[j,k-1] == 1:
+          # a previous adjacent point belonged to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k-1] == 1:
+          # a previous adjacent point belonged to the outside
+          isinside[j,k] = 1
+
+  # find biggest & smallest X and Y that are in the annotations
+      elif array[j,k] != 0:
+        # part of the annotation
         if j > maxJ:
           maxJ = j
         elif j < minJ:
@@ -19,12 +42,32 @@ def segment(array):
         elif k < minK:
           minK = k
   # end of finding the boundaries
-
   print(maxJ)
   print(minJ)
   print(maxK)
   print(minK)
-  
+
+  # loop through image again from bottom right corner of subregion
+  for j in range(maxJ+1, minJ-1, -1):
+    for k in range(maxK+1, minK-1, -1):
+      if array[j,k] == 0:
+        # NOT a part of the annotation
+        if j+1 > maxJ+1 or k+1 > maxK+1:
+          # this is an edge pixel
+          isinside[j,k] = 1
+        elif isinside[j+1,k] == 1:
+          # a previous adjacent point belonged to the outside
+          isinside[j,k] = 1
+        elif isinside[j,k+1] == 1:
+          # a previous adjacent point belonged to the outside
+          isinside[j,k] = 1
+        elif isinside[j+1,k+1] == 1:
+          # a previous adjacent point belonged to the outside
+          isinside[j,k] = 1
+                
+  return isinside
+
+"""
   isinside = numpy.zeros(array.shape,'float')
   for j in range(minJ-1,maxJ+1):
     for k in range(minK-1,maxK+1):
@@ -84,3 +127,4 @@ def segment(array):
       # else
           # do nothing since pixel is inside the annotation (>0) 
   return isinside
+"""
