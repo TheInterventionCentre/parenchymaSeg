@@ -64,9 +64,78 @@ def segment(array):
         elif isinside[j+1,k+1] == 1:
           # a previous adjacent point belonged to the outside
           isinside[j,k] = 1
-                
+          
+  # loop through image again from bottom left corner of subregion
+  for k in range(maxK+1, minK-1, -1):
+    for j in range(minJ-1, maxJ+1):
+      if array[j,k] == 0:
+        # NOT a part of the annotation
+        if j-1 < minJ-1 or k+1 > maxK+1:
+          # this is an edge pixel
+          isinside[j,k] = 1
+        elif isinside[j+1,k] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j,k+1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j+1,k+1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j,k-1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k-1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k+1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j+1,k-1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+
+  # loop through image again from top right corner of subregion
+  for k in range(minK-1, maxK+1):
+    for j in range(maxJ+1, minJ-1, -1):
+      if array[j,k] == 0:
+        # NOT a part of the annotation
+        if k-1 < minK-1 or j+1 > maxJ+1:
+          # this is an edge pixel
+          isinside[j,k] = 1
+        elif isinside[j+1,k] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j,k+1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j+1,k+1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j,k-1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k-1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j-1,k+1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+        elif isinside[j+1,k-1] == 1:
+          # an adjacent point belongs to the outside
+          isinside[j,k] = 1
+
   return isinside
 
+         
+
+                        
 """
   isinside = numpy.zeros(array.shape,'float')
   for j in range(minJ-1,maxJ+1):
