@@ -1,6 +1,7 @@
 #-----------------------------------------------------------------------------
 set(MODULE_NAME Parenchyma)
 
+  add_subdirectory(ParLib)
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
@@ -8,7 +9,10 @@ set(MODULE_PYTHON_SCRIPTS
 
 set(MODULE_PYTHON_RESOURCES
   Resources/Icons/${MODULE_NAME}.png
-  )
+  ParLib/Algorithms.py
+  ParLib/Paint.py
+  ParLib/__init__.py
+ )
 
 #-----------------------------------------------------------------------------
 slicerMacroBuildScriptedModule(

@@ -1,4 +1,5 @@
 import numpy
+import SimpleITK
 
 def segment(array):
 

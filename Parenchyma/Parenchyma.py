@@ -329,9 +329,9 @@ class ParenchymaTest(ScriptedLoadableModuleTest):
     # first, get some data 
     #
     import urllib
-    downloads = (
-        ('http://slicer.kitware.com/midas3/download?items=216203', '0.nrrd', slicer.util.loadVolume),
-        )
+    #downloads = ( ('http://slicer.kitware.com/midas3/download?items=216203', '0.nrrd', slicer.util.loadVolume),)
+
+    downloads = ( ('http://10.163.46.32/midas/download?items=163', '0.nrrd', slicer.util.loadVolume),)
 
     for url,name,loader in downloads:
       filePath = slicer.app.temporaryPath + '/' + name
