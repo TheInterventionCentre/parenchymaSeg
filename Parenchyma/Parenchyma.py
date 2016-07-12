@@ -3,6 +3,7 @@ import unittest
 from __main__ import vtk, qt, ctk, slicer
 import numpy
 import pickle
+import SimpleITK
 #import Editor
 import EditorLib
 from EditorLib.EditUtil import EditUtil
@@ -243,31 +244,44 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     #
     # get the drawn mask
     #
-    newArray = slicer.util.array(labelNode.GetID())
-    newArray2 = slicer.util.array(masterNode.GetID())
+    labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID())
     #pickle.dump( newArray, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_labelNode.p", "wb"))
     #pickle.dump( newArray2, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_masterNode.p", "wb"))
     
-    self.delayDisplay(newArray.shape)
-    self.delayDisplay(newArray2.shape)
+    self.delayDisplay(labelArray.shape)
+    self.delayDisplay(masterArray.shape)
     # TODO: compare dimensions to check they match
-    
+
+ 
+    intensitiesInside = []
     # find the levels where there are annotations
-    for i in range(0,newArray.shape[0]):
-      if numpy.max(newArray[i,:,:]) > 0:
+    for i in range(0,labelArray.shape[0]):
+      if numpy.max(labelArray[i,:,:]) > 0:
         print('in z:', i)
         # send the array of the one level
-        array = newArray[i,:,:]            
-        isinside = ParLib.Algorithms.segment(array)
-        #print isinside
+        array = labelArray[i,:,:]            
+        isinside = ParLib.Algorithms.segment(array) # call function "segment"
+        # print isinside
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
             if isinside[j,k] == 0:
-              newArray[i,j,k] = 21
-              #self.editPaint.paintPixel(j,k)
+              labelArray[i,j,k] = 21
+              # get all the intensities from the actual image
+              intensitiesInside.append(masterArray[i,j,k])
+
+    invert = (isinside == 0).astype('uint8') # uint8 (0-255) ok for binary image, but can trust all images will stay within those bounds (ct/mri images should be 0-255)?
+    roi = SimpleITK.GetImageFromArray(invert, isVector=False)
+    print('size of itk image:', roi.GetSize())
+    shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
+    shapefilter.SetBackgroundValue(0)
+    shapefilter.Execute(roi)
+    centroid = shapefilter.GetCentroid(1)
+    print('centroid:', centroid)
 
     labelNode.Modified()
+              
     self.delayDisplay('Algorithm done')
 
   def createLabelMap(self,masterNode):
