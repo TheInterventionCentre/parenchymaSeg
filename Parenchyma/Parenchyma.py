@@ -4,6 +4,7 @@ from __main__ import vtk, qt, ctk, slicer
 import numpy
 import pickle
 import SimpleITK
+import sitkUtils
 #import Editor
 import EditorLib
 from EditorLib.EditUtil import EditUtil
@@ -101,12 +102,21 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #
     # Stuff for drawing
     #
+    """
     self.labelButton = qt.QPushButton("Create label map")
     self.labelButton.toolTip = "Create label map."
     self.labelButton.enabled = True
     #self.labelButton.checkable = True
     parametersLayout.addRow(self.labelButton)
-
+    """ 
+    #
+    # Image pre-processing
+    #
+    self.processButton = qt.QPushButton("Image pre-processing")
+    self.processButton.toolTip = "Process image to enhance edges."
+    self.processButton.enabled = True
+    parametersLayout.addRow(self.processButton)
+    
     #
     # Paint Button
     #
@@ -119,16 +129,26 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #
     # Apply Button
     #
-    self.applyButton = qt.QPushButton("Apply")
-    self.applyButton.toolTip = "Run the algorithm."
+    self.applyButton = qt.QPushButton("Apply mask")
+    self.applyButton.toolTip = "Find area of mask."
     self.applyButton.enabled = True
     parametersLayout.addRow(self.applyButton)
+
+    #
+    # Grow Button
+    #
+    self.growButton = qt.QPushButton("Grow into 3D")
+    self.growButton.toolTip = "Grow into 3D with connected threshold."
+    self.growButton.enabled = True
+    parametersLayout.addRow(self.growButton)
 
     # connections
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
-    self.labelButton.connect('clicked(bool)', self.onLabelButton)
+    #self.labelButton.connect('clicked(bool)', self.onLabelButton)
+    self.processButton.connect('clicked(bool)', self.onProcessButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
+    self.growButton.connect('clicked(bool)', self.onGrowButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Creates and adds the custom Editor Widget to the module
@@ -158,6 +178,10 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onLabelButton(self):
     self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
+    #print(self.labelNode)
+
+  def onProcessButton(self):
+    self.logic.process(self.masterNode)
     #print(self.labelNode)
 
   def onPaintButton(self):
@@ -196,8 +220,10 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
       self.painter = EditorLib.PaintEffectTool(sliceWidget)
 
   def onApplyButton(self):
-    self.logic.run(self.masterNode, self.labelNode)
-    
+    self.logic.runMask(self.masterNode, self.labelNode)
+
+  def onGrowButton(self):
+    self.logic.run3D(self.masterNode, self.labelNode)
 
   
 
@@ -218,6 +244,13 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     #ScriptedLoadableModuleLogic.__init__(self, parent)
     #self.editPaint = EditorLib.PaintEffectOptions()
 
+  # global variables 
+  maskZ = 0
+  centroidX = 0
+  centroidY = 0
+  mean = 0
+  std = 0
+
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -232,34 +265,51 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
-  def run(self,masterNode,labelNode):
+  def process(self,masterNode):
+
+    # now need to use gradient image filter to process image?
+    masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+    #gradientIF = SimpleITK.GradientMagnitudeImageFilter()
+    #gradientImage = gradientIF.Execute(masterImage)
+    morphGradientIF = SimpleITK.MorphologicalGradientImageFilter()
+    morphGradientIF.SetKernelRadius(3)
+    morphGradientImage = morphGradientIF.Execute(masterImage)
+    
+    #gradientArray = SimpleITK.GetArrayFromImage(morphGradientImage) # is this in the right coordinate space?
+
+    sitkUtils.PushToSlicer(morphGradientImage, 'gradientImage')
+    
+
+  def runMask(self,masterNode,labelNode):
     """
-    Run the actual algorithm
+    Run things in 2D, stuff with the mask
     """
-    self.delayDisplay('Running the algorithm')
+    self.delayDisplay('Running the mask')
     # check there is a label map
     self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode))
     # TODO: do not run algorithm if there is no label map
     
-    #
     # get the drawn mask
-    #
     labelArray = slicer.util.array(labelNode.GetID())
     masterArray = slicer.util.array(masterNode.GetID())
+    #gradientArray = slicer.util.array('gradientImage')
     #pickle.dump( newArray, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_labelNode.p", "wb"))
     #pickle.dump( newArray2, open( "/Users/louise/Documents/source/ParSeg/Parenchyma/Testing/save_masterNode.p", "wb"))
     
-    self.delayDisplay(labelArray.shape)
-    self.delayDisplay(masterArray.shape)
+    print(labelArray.shape)
+    print(masterArray.shape)
     # TODO: compare dimensions to check they match
-
  
-    intensitiesInside = []
+    intensitiesInsideOriginal = []
+    #intensitiesInsideGradient = []
     # find the levels where there are annotations
     for i in range(0,labelArray.shape[0]):
       if numpy.max(labelArray[i,:,:]) > 0:
         print('in z:', i)
+        global maskZ
+        maskZ = i
         # send the array of the one level
+        annotatedSlice = masterArray[i,:,:]
         array = labelArray[i,:,:]            
         isinside = ParLib.Algorithms.segment(array) # call function "segment"
         # print isinside
@@ -268,21 +318,85 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
           for k in range(0,isinside.shape[1]):
             if isinside[j,k] == 0:
               labelArray[i,j,k] = 21
-              # get all the intensities from the actual image
-              intensitiesInside.append(masterArray[i,j,k])
+              # get all the intensities from the actual + modified image
+              intensitiesInsideOriginal.append(masterArray[i,j,k])
+              #intensitiesInsideGradient.append(gradientArray[i,j,k])
 
-    invert = (isinside == 0).astype('uint8') # uint8 (0-255) ok for binary image, but can trust all images will stay within those bounds (ct/mri images should be 0-255)?
+    # uint8 (0-255) ok for binary image, but cannot trust all images will stay within those bounds (ct/mri images can be encoded +/- numbers)?
+    invert = (isinside == 0).astype('uint8')   
     roi = SimpleITK.GetImageFromArray(invert, isVector=False)
-    print('size of itk image:', roi.GetSize())
+    print('size of itk image (label):', roi.GetSize())
     shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
     shapefilter.SetBackgroundValue(0)
     shapefilter.Execute(roi)
     centroid = shapefilter.GetCentroid(1)
     print('centroid:', centroid)
-
+    global centroidX
+    global centroidY
+    centroidX = int(centroid[0])
+    centroidY = int(centroid[1])
+    
+    meanOriginal = numpy.mean(intensitiesInsideOriginal[:])
+    print('mean:', meanOriginal)
+    stdOriginal = numpy.std(intensitiesInsideOriginal[:])
+    print('standard deviation:', stdOriginal)
+    global mean
+    global std
+    mean = meanOriginal
+    std = stdOriginal
+    
+    #masterNode.Modified()
     labelNode.Modified()
-              
-    self.delayDisplay('Algorithm done')
+                   
+    self.delayDisplay('Mask done')
+
+    
+  def run3D(self,masterNode,labelNode):
+
+    masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+
+    labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID())
+      
+    connectedThresholdIF = SimpleITK.ConnectedThresholdImageFilter()
+    connectedThresholdIF.SetLower(mean-std)
+    connectedThresholdIF.SetUpper(mean+std) 
+
+    print('Centroid:', int(centroidX), int(centroidY) )
+    connectedThresholdIF.SetSeed([int(centroidX),int(centroidY),maskZ])
+    print('starting: connected threshold filter')
+    connectedImage = connectedThresholdIF.Execute(masterImage)
+
+    sitkUtils.PushToSlicer(connectedImage, 'connectedImage')
+    '''
+    # start at maskZ and work out from there
+    for z1 in range(maskZ,masterImage.GetDepth()):
+      # loop through and use connected threshold on each slice
+      currentSlice = masterImage.GetPixel(:, :, z1)
+      # in first case we use the centroid calculated from the mask
+      connectedThresholdIF.SetSeed([int(centroid[0]),int(centroid[1])])
+      connectedImage = connectedThresholdIF.Execute(currentSlice)
+      
+
+    for z2 in range(maskZ,0):
+      # loop through and use connected threshold on each slice  
+        
+    # now need to grow out the mask in the current 2D image  
+    currentSlice = SimpleITK.GetImageFromArray(annotatedSlice, isVector=False)
+    print('size of itk image (current slice):', currentSlice.GetSize()) 
+    #masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+    connectedThresholdIF = SimpleITK.ConnectedThresholdImageFilter()
+    connectedThresholdIF.SetLower(meanOriginal-stdOriginal)
+    connectedThresholdIF.SetUpper(meanOriginal+stdOriginal) 
+    ##connectedThresholdIF.SetSeed(centroid.astype('uint8'))
+    connectedThresholdIF.SetSeed([int(centroid[0]),int(centroid[1])])
+    connectedImage = connectedThresholdIF.Execute(currentSlice)
+    #sitkUtils.PushToSlicer(connectedImage, 'gradientImage')
+    '''
+    # then use that information to grow into 3D
+
+
+        
 
   def createLabelMap(self,masterNode):
     self.delayDisplay('Creating label map')
