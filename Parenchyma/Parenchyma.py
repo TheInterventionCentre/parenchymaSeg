@@ -142,6 +142,14 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.growButton.enabled = True
     parametersLayout.addRow(self.growButton)
 
+    #
+    # Find outer edge
+    #
+    self.edgeButton = qt.QPushButton("Find outer edge")
+    self.edgeButton.toolTip = "Try to find outer boundary of holy segmentation."
+    self.edgeButton.enabled = True
+    parametersLayout.addRow(self.edgeButton)
+
     # connections
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
@@ -149,6 +157,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.processButton.connect('clicked(bool)', self.onProcessButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
+    self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Creates and adds the custom Editor Widget to the module
@@ -225,7 +234,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onGrowButton(self):
     self.logic.run3D(self.masterNode, self.labelNode)
 
-  
+  def onEdgeButton(self):
+    self.logic.runFindEdge(self.masterNode, self.labelNode)
 
 #
 # ParenchymaLogic
@@ -395,8 +405,52 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     '''
     # then use that information to grow into 3D
 
+  def runFindEdge(self,masterNode,labelNode):
 
-        
+    # get the image
+    connectedArray = slicer.util.array(masterNode.GetID())
+    labelArray = slicer.util.array(labelNode.GetID())
+
+    # loop through the slice (z)
+    for z in range(0,connectedArray.shape[0]):
+      # then go over each image (downsampling by only taking every 5th)
+      # in y direction
+      for x in range(0,connectedArray.shape[1],5):
+        keepMax = 0
+        keepMin = connectedArray.shape[2]-1
+        for y in range(0,connectedArray.shape[2]):
+          if connectedArray[z,x,y] == 1:
+            # trying to find the largest and smallest y in each "line"
+            if y > keepMax:
+              keepMax = y
+            if y < keepMin:
+              keepMin = y
+        # annotate the max / min
+        if keepMax != 0:
+          labelArray[z,x,keepMax] = 17
+          print('Point y: ', keepMax)
+        if keepMin != connectedArray.shape[2]-1:
+          labelArray[z,x,keepMin] = 17
+          print('Point y: ', keepMin)
+      # in x direction
+      for y in range(0,connectedArray.shape[2],5):
+        keepMax = 0
+        keepMin = connectedArray.shape[1]-1
+        for x in range(0,connectedArray.shape[1]):
+          if connectedArray[z,x,y] == 1:
+            # trying to find the largest and smallest x in each "line"
+            if x > keepMax:
+              keepMax = x
+            if x < keepMin:
+              keepMin = x
+        # annotate the max / min
+        if keepMax != 0:
+          labelArray[z,keepMax,y] = 17
+          print('Point x: ', keepMax)
+        if keepMin != connectedArray.shape[1]-1:
+          labelArray[z,keepMin,y] = 17
+          print('Point x: ', keepMin)
+
 
   def createLabelMap(self,masterNode):
     self.delayDisplay('Creating label map')
