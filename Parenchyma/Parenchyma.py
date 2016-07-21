@@ -7,6 +7,7 @@ import SimpleITK
 import sitkUtils
 #import Editor
 import EditorLib
+#from EditorLib.EditOptions import EditOptions
 from EditorLib.EditUtil import EditUtil
 import ParLib.Algorithms
 import ParLib.Paint
@@ -44,6 +45,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+  
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.masterNode = None
@@ -135,6 +137,15 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.applyButton)
 
     #
+    # Range for threshold
+    #
+    self.threshold = ctk.ctkRangeWidget()
+    lo, hi = self.getLoHiImageValues()
+    self.threshold.minimum, self.threshold.maximum = lo, hi
+    self.threshold.singleStep = (hi - lo) / 1000.
+    parametersLayout.addRow(self.threshold)
+    
+    #
     # Grow Button
     #
     self.growButton = qt.QPushButton("Grow into 3D")
@@ -160,6 +171,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
+    self.threshold.connect('valuesChanged(double,double)', self.onThresholdValuesChanged)
+
     # Creates and adds the custom Editor Widget to the module
     #self.localParEditorWidget = ParEditorWidget(parent=self.parent, showVolumesFrame=False)
     #self.localParEditorWidget.setup()
@@ -183,6 +196,9 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onSelectButton(self):
     logic = ParenchymaLogic()
     self.masterNode = self.inputSelector.currentNode()
+    lo, hi = self.getLoHiImageValues()
+    self.threshold.minimum, self.threshold.maximum = lo, hi
+    self.threshold.singleStep = (hi - lo) / 1000.
     #print(self.inputSelector.currentNode())
 
   def onLabelButton(self):
@@ -237,10 +253,30 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onEdgeButton(self):
     self.logic.runFindEdge(self.masterNode, self.labelNode)
 
+  def getLoHiImageValues(self):
+    backgroundImage = self.masterNode
+    lo = 0
+    hi = 100
+    if backgroundImage:
+      data = backgroundImage.GetImageData()
+      lo, hi = data.GetScalarRange()
+      print('Low: ', lo)
+      print('High: ', hi)
+    return lo, hi
+
+  def onThresholdValuesChanged(self):
+    print('value changed')
+    min = self.threshold.minimumValue
+    max = self.threshold.maximumValue
+    print(min, max)
+
+  def setThresholdValues(self, min, max):
+    self.threshold.setMinimumValue( min )
+    self.threshold.setMaximumValue( max )
+    
 #
 # ParenchymaLogic
 #
-
 class ParenchymaLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
@@ -357,6 +393,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     
     #masterNode.Modified()
     labelNode.Modified()
+
+    #self.ParenchymaWidget().setThresholdValues(mean-std, mean+std)
                    
     self.delayDisplay('Mask done')
 
@@ -369,41 +407,22 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     masterArray = slicer.util.array(masterNode.GetID())
       
     connectedThresholdIF = SimpleITK.ConnectedThresholdImageFilter()
-    connectedThresholdIF.SetLower(mean-std)
-    connectedThresholdIF.SetUpper(mean+std) 
+    connectedThresholdIF.SetLower(mean-(1.5*std))
+    connectedThresholdIF.SetUpper(mean+(1.5*std)) 
 
     print('Centroid:', int(centroidX), int(centroidY) )
     connectedThresholdIF.SetSeed([int(centroidX),int(centroidY),maskZ])
     print('starting: connected threshold filter')
-    connectedImage = connectedThresholdIF.Execute(masterImage)
+    thresholdImage = connectedThresholdIF.Execute(masterImage)
+
+    print('starting: fill holes filter')
+    fillHoleIF = SimpleITK.GrayscaleFillholeImageFilter()
+    connectedImage = fillHoleIF.Execute(thresholdImage)
 
     sitkUtils.PushToSlicer(connectedImage, 'connectedImage')
-    '''
-    # start at maskZ and work out from there
-    for z1 in range(maskZ,masterImage.GetDepth()):
-      # loop through and use connected threshold on each slice
-      currentSlice = masterImage.GetPixel(:, :, z1)
-      # in first case we use the centroid calculated from the mask
-      connectedThresholdIF.SetSeed([int(centroid[0]),int(centroid[1])])
-      connectedImage = connectedThresholdIF.Execute(currentSlice)
-      
 
-    for z2 in range(maskZ,0):
-      # loop through and use connected threshold on each slice  
-        
-    # now need to grow out the mask in the current 2D image  
-    currentSlice = SimpleITK.GetImageFromArray(annotatedSlice, isVector=False)
-    print('size of itk image (current slice):', currentSlice.GetSize()) 
-    #masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
-    connectedThresholdIF = SimpleITK.ConnectedThresholdImageFilter()
-    connectedThresholdIF.SetLower(meanOriginal-stdOriginal)
-    connectedThresholdIF.SetUpper(meanOriginal+stdOriginal) 
-    ##connectedThresholdIF.SetSeed(centroid.astype('uint8'))
-    connectedThresholdIF.SetSeed([int(centroid[0]),int(centroid[1])])
-    connectedImage = connectedThresholdIF.Execute(currentSlice)
-    #sitkUtils.PushToSlicer(connectedImage, 'gradientImage')
-    '''
-    # then use that information to grow into 3D
+
+    
 
   def runFindEdge(self,masterNode,labelNode):
 
@@ -471,8 +490,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     return merge
       
-
-
 
     
 
