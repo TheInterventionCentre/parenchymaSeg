@@ -194,7 +194,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.masterNode = self.inputSelector.currentNode()
 
   def onSelectButton(self):
-    logic = ParenchymaLogic()
     self.masterNode = self.inputSelector.currentNode()
     lo, hi = self.getLoHiImageValues()
     self.threshold.minimum, self.threshold.maximum = lo, hi
@@ -246,6 +245,13 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onApplyButton(self):
     self.logic.runMask(self.masterNode, self.labelNode)
+    mean, std = self.logic.getMeanSD()
+    max = mean + std
+    min = mean - std
+    hi = mean + 4*std
+    lo = mean - 4*std
+    self.threshold.minimum, self.threshold.maximum = lo, hi
+    self.setThresholdValues(min, max)
 
   def onGrowButton(self):
     self.logic.run3D(self.masterNode, self.labelNode)
@@ -297,6 +303,9 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
   mean = 0
   std = 0
 
+  def getMeanSD(self):
+    global mean, std
+    return mean, std
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -386,15 +395,12 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('mean:', meanOriginal)
     stdOriginal = numpy.std(intensitiesInsideOriginal[:])
     print('standard deviation:', stdOriginal)
-    global mean
-    global std
+    global mean, std
     mean = meanOriginal
     std = stdOriginal
     
     #masterNode.Modified()
     labelNode.Modified()
-
-    #self.ParenchymaWidget().setThresholdValues(mean-std, mean+std)
                    
     self.delayDisplay('Mask done')
 
@@ -432,6 +438,12 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     # loop through the slice (z)
     for z in range(0,connectedArray.shape[0]):
+      # look for connected areas in 2D plane
+      #for x in range(0,connectedArray.shape[1]):
+        #for y in range(0,connectedArray.shape[2]):
+          #if connectedArray[z,x,y] == 1:
+
+            
       # then go over each image (downsampling by only taking every 5th)
       # in y direction
       for x in range(0,connectedArray.shape[1],5):
