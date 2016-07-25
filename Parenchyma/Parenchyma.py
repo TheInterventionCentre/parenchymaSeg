@@ -428,7 +428,44 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     sitkUtils.PushToSlicer(connectedImage, 'connectedImage')
 
 
-    
+  def regionGrow2D(self, z,x,y, label, connectedArray, labelArray):
+
+      labelArray[z,x,y] = label
+      pixels = [] # keep list of pixels included in area
+      pixels.append([z,x,y])
+      
+      while len(pixels) > 0:
+        #print('pixels length', len(pixels))
+        # get the latest pixel
+        z,x,y = pixels.pop()
+        # grow out to everything connected to this
+        if connectedArray[z,x+1,y] == 1 and labelArray[z,x+1,y] != label:
+          labelArray[z,x+1,y] = label
+          pixels.append([z,x+1,y])
+        if connectedArray[z,x-1,y] == 1 and labelArray[z,x-1,y] != label:
+          labelArray[z,x-1,y] = label
+          pixels.append([z,x-1,y])
+        if connectedArray[z,x,y+1] == 1 and labelArray[z,x,y+1] != label:
+          labelArray[z,x,y+1] = label
+          pixels.append([z,x,y+1])
+        if connectedArray[z,x,y-1] == 1 and labelArray[z,x,y-1] != label:
+          labelArray[z,x,y-1] = label
+          pixels.append([z,x,y-1])
+        if connectedArray[z,x+1,y+1] == 1 and labelArray[z,x+1,y+1] != label:
+          labelArray[z,x+1,y+1] = label
+          pixels.append([z,x+1,y+1])
+        if connectedArray[z,x-1,y-1] == 1 and labelArray[z,x-1,y-1] != label:
+          labelArray[z,x-1,y-1] = label
+          pixels.append([z,x-1,y-1])
+        if connectedArray[z,x+1,y-1] == 1 and labelArray[z,x+1,y-1] != label:
+          labelArray[z,x+1,y-1] = label
+          pixels.append([z,x+1,y-1])
+        if connectedArray[z,x-1,y+1] == 1 and labelArray[z,x-1,y+1] != label:
+          labelArray[z,x-1,y+1] = label
+          pixels.append([z,x-1,y+1])
+
+      return label+1
+     
 
   def runFindEdge(self,masterNode,labelNode):
 
@@ -438,49 +475,54 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     # loop through the slice (z)
     for z in range(0,connectedArray.shape[0]):
+      label = 20
       # look for connected areas in 2D plane
-      #for x in range(0,connectedArray.shape[1]):
-        #for y in range(0,connectedArray.shape[2]):
-          #if connectedArray[z,x,y] == 1:
-
-            
-      # then go over each image (downsampling by only taking every 5th)
-      # in y direction
-      for x in range(0,connectedArray.shape[1],5):
-        keepMax = 0
-        keepMin = connectedArray.shape[2]-1
+      for x in range(0,connectedArray.shape[1]):
         for y in range(0,connectedArray.shape[2]):
-          if connectedArray[z,x,y] == 1:
-            # trying to find the largest and smallest y in each "line"
-            if y > keepMax:
-              keepMax = y
-            if y < keepMin:
-              keepMin = y
-        # annotate the max / min
-        if keepMax != 0:
-          labelArray[z,x,keepMax] = 17
-          print('Point y: ', keepMax)
-        if keepMin != connectedArray.shape[2]-1:
-          labelArray[z,x,keepMin] = 17
-          print('Point y: ', keepMin)
-      # in x direction
-      for y in range(0,connectedArray.shape[2],5):
-        keepMax = 0
-        keepMin = connectedArray.shape[1]-1
-        for x in range(0,connectedArray.shape[1]):
-          if connectedArray[z,x,y] == 1:
-            # trying to find the largest and smallest x in each "line"
-            if x > keepMax:
-              keepMax = x
-            if x < keepMin:
-              keepMin = x
-        # annotate the max / min
-        if keepMax != 0:
-          labelArray[z,keepMax,y] = 17
-          print('Point x: ', keepMax)
-        if keepMin != connectedArray.shape[1]-1:
-          labelArray[z,keepMin,y] = 17
-          print('Point x: ', keepMin)
+          if connectedArray[z,x,y] == 1 and labelArray[z,x,y] < 20:
+            print('calling region grow', label)
+            label = self.regionGrow2D(z,x,y, label, connectedArray, labelArray)
+            
+'''
+            # loop over the 1 colour region to find edges
+            # in y direction (downsampling by only taking every 5th)
+            for x in range(0,connectedArray.shape[1],5):
+              keepMax = 0
+              keepMin = connectedArray.shape[2]-1
+              for y in range(0,connectedArray.shape[2]):
+                if connectedArray[z,x,y] == 1 and labelArray[z,x,y] == label-1:
+                  # trying to find the largest and smallest y in each "line"
+                  if y > keepMax:
+                    keepMax = y
+                  if y < keepMin:
+                    keepMin = y
+                # annotate the max / min
+                if keepMax != 0:
+                  labelArray[z,x,keepMax] = 17
+                  print('Point y: ', keepMax)
+                if keepMin != connectedArray.shape[2]-1:
+                  labelArray[z,x,keepMin] = 17
+                  print('Point y: ', keepMin)
+            # in x direction (downsampling by only taking every 5th)
+            for y in range(0,connectedArray.shape[2],5):
+              keepMax = 0
+              keepMin = connectedArray.shape[1]-1
+              for x in range(0,connectedArray.shape[1]):
+                if connectedArray[z,x,y] == 1 and labelArray[z,x,y] == label-1:
+                  # trying to find the largest and smallest x in each "line"
+                  if x > keepMax:
+                    keepMax = x
+                  if x < keepMin:
+                    keepMin = x
+                # annotate the max / min
+                if keepMax != 0:
+                  labelArray[z,keepMax,y] = 17
+                  print('Point x: ', keepMax)
+                if keepMin != connectedArray.shape[1]-1:
+                  labelArray[z,keepMin,y] = 17
+                  print('Point x: ', keepMin)
+'''            
+
 
 
   def createLabelMap(self,masterNode):
