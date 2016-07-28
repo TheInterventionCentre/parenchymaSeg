@@ -114,10 +114,15 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #
     # Image pre-processing
     #
-    self.processButton = qt.QPushButton("Image pre-processing")
-    self.processButton.toolTip = "Process image to enhance edges."
-    self.processButton.enabled = True
-    parametersLayout.addRow(self.processButton)
+    self.processGradientButton = qt.QPushButton("Image pre-processing gradient")
+    self.processGradientButton.toolTip = "Process image to enhance edges."
+    self.processGradientButton.enabled = True
+    parametersLayout.addRow(self.processGradientButton)
+
+    self.processFilterButton = qt.QPushButton("Image pre-processing")
+    self.processFilterButton.toolTip = "Process image to ..."
+    self.processFilterButton.enabled = True
+    parametersLayout.addRow(self.processFilterButton)
     
     #
     # Paint Button
@@ -148,10 +153,27 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #
     # Grow Button
     #
-    self.growButton = qt.QPushButton("Grow into 3D")
+    self.growButton = qt.QPushButton("Grow with Threshold")
     self.growButton.toolTip = "Grow into 3D with connected threshold."
     self.growButton.enabled = True
     parametersLayout.addRow(self.growButton)
+
+    #
+    # Cross remove Button
+    #
+    self.crossButton = qt.QPushButton("Cross remove")
+    self.crossButton.toolTip = "re-implementation of sergio's cross remove."
+    self.crossButton.enabled = True
+    parametersLayout.addRow(self.crossButton)
+
+    #
+    # Connectivity reduction Button
+    #
+    self.connectivityButton = qt.QPushButton("Connectivity reduction")
+    self.connectivityButton.toolTip = "re-implementation of sergio's connectivity reduction."
+    self.connectivityButton.enabled = True
+    parametersLayout.addRow(self.connectivityButton)
+    
 
     #
     # Find outer edge
@@ -165,9 +187,12 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
     #self.labelButton.connect('clicked(bool)', self.onLabelButton)
-    self.processButton.connect('clicked(bool)', self.onProcessButton)
+    self.processGradientButton.connect('clicked(bool)', self.onProcessGradientButton)
+    self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
+    self.crossButton.connect('clicked(bool)', self.onCrossButton)
+    self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
     self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
@@ -204,8 +229,12 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
     #print(self.labelNode)
 
-  def onProcessButton(self):
-    self.logic.process(self.masterNode)
+  def onProcessGradientButton(self):
+    self.logic.processGradient(self.masterNode)
+    #print(self.labelNode)
+
+  def onProcessFilterButton(self):
+    self.logic.processFilter(self.masterNode)
     #print(self.labelNode)
 
   def onPaintButton(self):
@@ -254,8 +283,14 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.setThresholdValues(min, max)
 
   def onGrowButton(self):
-    self.logic.run3D(self.masterNode, self.labelNode)
+    self.logic.runThreshold(self.masterNode, self.labelNode)
 
+  def onCrossButton(self):
+    self.logic.runCrossRemove(self.masterNode, self.labelNode, 2) # need to pass in size of cross
+
+  def onConnectivityButton(self):
+    self.logic.runConnectivity(self.masterNode, self.labelNode, 10) # need to pass in number of pixels around it that need to be 1
+    
   def onEdgeButton(self):
     self.logic.runFindEdge(self.masterNode, self.labelNode)
 
@@ -320,7 +355,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
-  def process(self,masterNode):
+  def processGradient(self,masterNode):
 
     # now need to use gradient image filter to process image?
     masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
@@ -333,7 +368,17 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     #gradientArray = SimpleITK.GetArrayFromImage(morphGradientImage) # is this in the right coordinate space?
 
     sitkUtils.PushToSlicer(morphGradientImage, 'gradientImage')
+
+  def processFilter(self,masterNode):
+
+    # now need to use edge image filter to process image?
+    masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+
+    testIF = SimpleITK.CannyEdgeDetectionImageFilter()
+    testImage = testIF.Execute(SimpleITK.Cast(masterImage, SimpleITK.sitkFloat32), 0.0, 200.0, (5.0,5.0,5.0), (0.5,0.5,0.5) )
     
+    sitkUtils.PushToSlicer(testImage, 'filterImage')
+
 
   def runMask(self,masterNode,labelNode):
     """
@@ -405,7 +450,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     self.delayDisplay('Mask done')
 
     
-  def run3D(self,masterNode,labelNode):
+  def runThreshold(self,masterNode,labelNode):
 
     masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
 
@@ -427,6 +472,50 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     sitkUtils.PushToSlicer(connectedImage, 'connectedImage')
 
+    
+  def runCrossRemove(self,masterNode,labelNode,size_c):
+
+    #labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID()) # should be binary connected image
+
+    for i in range(0, masterArray.shape[0]):
+      print('crossRemove:', i)
+      for j in range(size_c,masterArray.shape[1]-size_c):
+        for k in range(size_c,masterArray.shape[2]-size_c):
+          sum_j = 0
+          sum_k = 0
+          # go out 2 pixels in each 2D direction (j,k)
+          sum_j = numpy.sum(masterArray[i,j-size_c:j+size_c+1,k])
+          sum_k = numpy.sum(masterArray[i,j,k-size_c:k+size_c+1])
+          
+          if(masterArray[i,j,k] == 1):
+            # check if not connected enough (and remove pixel if it is)
+            if(sum_j <=1 or sum_k <=0):
+              masterArray[i,j,k] = 0
+          if(masterArray[i,j,k] == 0):
+            # check if is very connected (and add pixel if it is)
+            if(sum_j >= (2*size_c) or sum_k >= (2*size_c)):
+              masterArray[i,j,k] = 1
+              
+
+  def runConnectivity(self,masterNode,labelNode, connectivity):
+
+    labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID()) # should be binary connected image
+
+    print('running connectivity reduction')
+    for i in range(0, masterArray.shape[0]):
+      print('connectivity:', i)
+      for j in range(5,masterArray.shape[1]-5):
+        for k in range(5,masterArray.shape[2]-5):
+          if(masterArray[i,j,k] == 1):
+            sum_square = 0
+            sum_square = numpy.sum(masterArray[i,j-2:j+3,k-2:k+3]) - masterArray[i,j,k]
+            # if its not connected enough, remove pixel
+            if sum_square < connectivity:
+              masterArray[i,j,k] = 17
+            
+   
 
   def regionGrow2D(self, z,x,y, label, connectedArray, labelArray):
 
@@ -480,17 +569,18 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       for x in range(0,connectedArray.shape[1]):
         for y in range(0,connectedArray.shape[2]):
           if connectedArray[z,x,y] == 1 and labelArray[z,x,y] < 20:
-            print('calling region grow', label)
             label = self.regionGrow2D(z,x,y, label, connectedArray, labelArray)
-            
-'''
+            print('called region grow', label-1)
+            print('in layer', z)
+
+            '''
             # loop over the 1 colour region to find edges
             # in y direction (downsampling by only taking every 5th)
-            for x in range(0,connectedArray.shape[1],5):
+            for x in range(0,labelArray.shape[1],5):
               keepMax = 0
-              keepMin = connectedArray.shape[2]-1
-              for y in range(0,connectedArray.shape[2]):
-                if connectedArray[z,x,y] == 1 and labelArray[z,x,y] == label-1:
+              keepMin = labelArray.shape[2]-1
+              for y in range(0,labelArray.shape[2],5):
+                if labelArray[z,x,y] == label-1:
                   # trying to find the largest and smallest y in each "line"
                   if y > keepMax:
                     keepMax = y
@@ -500,15 +590,15 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
                 if keepMax != 0:
                   labelArray[z,x,keepMax] = 17
                   print('Point y: ', keepMax)
-                if keepMin != connectedArray.shape[2]-1:
+                if keepMin != labelArray.shape[2]-1:
                   labelArray[z,x,keepMin] = 17
                   print('Point y: ', keepMin)
             # in x direction (downsampling by only taking every 5th)
-            for y in range(0,connectedArray.shape[2],5):
+            for y in range(0,labelArray.shape[2],5):
               keepMax = 0
-              keepMin = connectedArray.shape[1]-1
-              for x in range(0,connectedArray.shape[1]):
-                if connectedArray[z,x,y] == 1 and labelArray[z,x,y] == label-1:
+              keepMin = labelArray.shape[1]-1
+              for x in range(0,labelArray.shape[1],5):
+                if labelArray[z,x,y] == label-1:
                   # trying to find the largest and smallest x in each "line"
                   if x > keepMax:
                     keepMax = x
@@ -518,12 +608,11 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
                 if keepMax != 0:
                   labelArray[z,keepMax,y] = 17
                   print('Point x: ', keepMax)
-                if keepMin != connectedArray.shape[1]-1:
+                if keepMin != labelArray.shape[1]-1:
                   labelArray[z,keepMin,y] = 17
                   print('Point x: ', keepMin)
-'''            
-
-
+            '''
+                      
 
   def createLabelMap(self,masterNode):
     self.delayDisplay('Creating label map')
