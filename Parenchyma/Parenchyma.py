@@ -195,6 +195,15 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.corrMaskButton)
 
     #
+    # Apply correction
+    #
+    self.trimButton = qt.QPushButton("Remove unconnected")
+    self.trimButton.toolTip = "try to see just the main blob and remove stuff not connected."
+    self.trimButton.enabled = True
+    parametersLayout.addRow(self.trimButton)
+    
+
+    #
     # Find outer edge
     #
     self.edgeButton = qt.QPushButton("Find outer edge")
@@ -214,6 +223,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
     self.correctButton.connect('clicked(bool)', self.onCorrectButton)
     self.corrMaskButton.connect('clicked(bool)', self.onCorrectMaskButton)
+    self.trimButton.connect('clicked(bool)', self.onTrimButton)
     self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
@@ -348,6 +358,11 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onCorrectMaskButton(self):
     self.logic.runCorrectMask(self.masterNode, self.labelNode)
+
+
+  def onTrimButton(self):
+    self.logic.runTrimCorrect(self.masterNode, self.labelNode)
+    
       
   def onEdgeButton(self):
     self.logic.runFindEdge(self.masterNode, self.labelNode)
@@ -616,13 +631,13 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
-            if isinside[j,k] == 0: # and connectedArray[mZ,j,k] == 1:
+            if isinside[j,k] == 0 and connectedArray[mZ,j,k] == 1:
               labelArray[i,j,k] = 5
               # get all the intensities from the actual + modified image
-              #intensitiesInsideOriginal.append(masterArray[i,j,k])
-              #intensitiesInsideGradient.append(gradientArray[i,j,k])
+              intensitiesInsideOriginal.append(masterArray[i,j,k])
+            if isinside[j,k] == 0:
+              labelArray[i,j,k] = 5
 
-    '''
     # uint8 (0-255) ok for binary image, but cannot trust all images will stay within those bounds (ct/mri images can be encoded +/- numbers)?
     invert = (isinside == 0).astype('uint8')   
     roi = SimpleITK.GetImageFromArray(invert, isVector=False)
@@ -639,23 +654,10 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('mean:', meanOriginal)
     stdOriginal = numpy.std(intensitiesInsideOriginal[:])
     print('standard deviation:', stdOriginal)
-    '''
-    
-    #global maskZ
-    #global centroidX 
-    #global centroidY 
-
-    #masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
-    #print('Isolated connected Image filter')
-    #isolatedConnectedIF = SimpleITK.IsolatedConnectedImageFilter()
-    #isolatedConnectedIF.SetSeed1((mZ,centX,centY))
-    #isolatedConnectedIF.SetSeed2((maskZ,centroidX,centroidY))
-    
-    #masterNode.Modified()
 
     labelArray = self.modifyWrongArea(connectedArray, labelArray, mZ, 5)
     labelNode.Modified()
-                   
+           
     self.delayDisplay('Correction mask done')
     
 
@@ -670,28 +672,109 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       flag = 0
       for j in range(0,connectedArray.shape[1]):
         for k in range(0,connectedArray.shape[2]):
-          if labelArray[maskZ,j,k] == 5 and connectedArray[i,j,k] == 1:
+          if labelArray[maskZ,j,k] == 5: # and connectedArray[i,j,k] == 1:
             labelArray[i,j,k] = 0 # erase the segemented region
             if flag == 0:
               print('erase superior:', i)
               flag = 1
             
     # inferior
-    inf = maskZ - numSlices
+    inf = maskZ - numSlices+1
     if(inf < 0):
       inf = 0
     for i in range(inf, maskZ): # go over the prescribed number of slices
       flag = 0
       for j in range(0,connectedArray.shape[1]):
         for k in range(0,connectedArray.shape[2]):
-          if labelArray[maskZ,j,k] == 5 and connectedArray[i,j,k] == 1:
+          if labelArray[maskZ,j,k] == 5: # and connectedArray[i,j,k] == 1:
             labelArray[i,j,k] = 0 # erase the segemented region
             if flag == 0:
               print('erase inferior:', i)
               flag = 1
+    return labelArray
+  
 
-    return labelArray    
-   
+  def runTrimCorrect(self,masterNode,labelNode):
+
+    labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID())
+    connectedNode = slicer.util.getNode('connectedImage')
+    connectedArray = slicer.util.array(connectedNode.GetID())
+    
+    labelArray = self.removeIsolatedArea(connectedArray, labelArray)
+    labelNode.Modified()
+    print('finished run2ndCorrect')
+
+    
+  def removeIsolatedArea(self, connectedArray, labelArray):
+
+    # detect main region
+    newLabel = 4
+    eraseLabel = 1
+    labelArray = self.regionGrow3D(newLabel, eraseLabel, connectedArray, labelArray)
+
+    # delete everything in the label other than newLabel
+    
+    print('removing unconnected')
+    for i in range(0, labelArray.shape[0]):
+      for j in range(0,labelArray.shape[1]):
+        for k in range(0,labelArray.shape[2]):
+          if labelArray[i,j,k] != newLabel:
+            labelArray[i,j,k] = 0
+
+    print('finished remove isolated area')
+    
+    
+  def regionGrow3D(self, newLabel, eraseLabel, connectedArray, labelArray):
+
+    global centroidX 
+    global centroidY
+    global maskZ
+    print('called region grow 3d:', maskZ)
+    labelArray[maskZ, centroidX, centroidY] = newLabel
+    pixels = [] # keep list of pixels included in area
+    pixels.append([maskZ, centroidX, centroidY])
+
+    while len(pixels) > 0:
+      #print('pixels length', len(pixels))
+      # get the latest pixel
+      z,x,y = pixels.pop()
+      if z < labelArray.shape[0]-1 and z > 1 and x < labelArray.shape[1]-1 and x > 1 and y < labelArray.shape[2]-1 and x > 1:
+        # grow out to everything connected to this
+        if labelArray[z,x+1,y] == eraseLabel:
+          labelArray[z,x+1,y] = newLabel
+          pixels.append([z,x+1,y])
+        if labelArray[z,x-1,y] == eraseLabel:
+          labelArray[z,x-1,y] = newLabel
+          pixels.append([z,x-1,y])
+        if labelArray[z,x,y+1] == eraseLabel:
+          labelArray[z,x,y+1] = newLabel
+          pixels.append([z,x,y+1])
+        if labelArray[z,x,y-1] == eraseLabel:
+          labelArray[z,x,y-1] = newLabel
+          pixels.append([z,x,y-1])
+        if labelArray[z,x+1,y+1] == eraseLabel:
+          labelArray[z,x+1,y+1] = newLabel
+          pixels.append([z,x+1,y+1])
+        if labelArray[z,x-1,y-1] == eraseLabel:
+          labelArray[z,x-1,y-1] = newLabel
+          pixels.append([z,x-1,y-1])
+        if labelArray[z,x+1,y-1] == eraseLabel:
+          labelArray[z,x+1,y-1] = newLabel
+          pixels.append([z,x+1,y-1])
+        if labelArray[z,x-1,y+1] == eraseLabel:
+          labelArray[z,x-1,y+1] = newLabel
+          pixels.append([z,x-1,y+1])
+        # z direction (up / down)
+        if labelArray[z+1,x,y] == eraseLabel:
+          labelArray[z+1,x,y] = newLabel
+          pixels.append([z+1,x,y])
+        if labelArray[z-1,x,y] == eraseLabel:
+          labelArray[z-1,x,y] = newLabel
+          pixels.append([z-1,x,y])
+
+    return labelArray
+  
 
   def regionGrow2D(self, z,x,y, label, connectedArray, labelArray):
 
