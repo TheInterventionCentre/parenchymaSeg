@@ -480,7 +480,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         # send the array of the one level
         annotatedSlice = masterArray[i,:,:]
         array = labelArray[i,:,:]            
-        isinside = ParLib.Algorithms.segment(array) # call function "segment"
+        isinside = ParLib.Algorithms.segment(array, 1) # call function "segment"
         # print isinside
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
@@ -623,7 +623,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         # send the array of the one level
         annotatedSlice = masterArray[i,:,:]
         array = labelArray[i,:,:]            
-        isinside = ParLib.Algorithms.segment(array) # call function "segment"
+        isinside = ParLib.Algorithms.segment(array, 5) # call function "segment"
         # print isinside
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):

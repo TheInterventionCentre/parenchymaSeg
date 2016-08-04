@@ -1,7 +1,7 @@
 import numpy
 import SimpleITK
 
-def segment(array):
+def segment(array, searchLabel):
 
   maxJ = 0
   minJ = array.shape[0]
@@ -16,7 +16,7 @@ def segment(array):
       # grow out from upper left corner (which we assume to be outside)
       # actually we essentially assume the whole left/top edge to be outside
       # unless it is a part of the annotation
-      if array[j,k] == 0:
+      if array[j,k] != searchLabel:
         # NOT a part of the annotation
         if j-1 < 0 or k-1 < 0:
           # this is an edge pixel
@@ -32,7 +32,7 @@ def segment(array):
           isinside[j,k] = 1
 
   # find biggest & smallest X and Y that are in the annotations
-      elif array[j,k] != 0:
+      elif array[j,k] == searchLabel:
         # part of the annotation
         if j > maxJ:
           maxJ = j
@@ -51,7 +51,7 @@ def segment(array):
   # loop through image again from bottom right corner of subregion
   for j in range(maxJ+1, minJ-1, -1):
     for k in range(maxK+1, minK-1, -1):
-      if array[j,k] == 0:
+      if array[j,k] != searchLabel:
         # NOT a part of the annotation
         if j+1 > maxJ+1 or k+1 > maxK+1:
           # this is an edge pixel
@@ -69,7 +69,7 @@ def segment(array):
   # loop through image again from bottom left corner of subregion
   for k in range(maxK+1, minK-1, -1):
     for j in range(minJ-1, maxJ+1):
-      if array[j,k] == 0:
+      if array[j,k] != searchLabel:
         # NOT a part of the annotation
         if j-1 < minJ-1 or k+1 > maxK+1:
           # this is an edge pixel
@@ -102,7 +102,7 @@ def segment(array):
   # loop through image again from top right corner of subregion
   for k in range(minK-1, maxK+1):
     for j in range(maxJ+1, minJ-1, -1):
-      if array[j,k] == 0:
+      if array[j,k] != searchLabel:
         # NOT a part of the annotation
         if k-1 < minK-1 or j+1 > maxJ+1:
           # this is an edge pixel
