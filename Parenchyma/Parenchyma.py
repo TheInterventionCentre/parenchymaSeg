@@ -105,16 +105,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.selectButton)
 
     #
-    # Create label map
-    #
-    """
-    self.labelButton = qt.QPushButton("Create label map")
-    self.labelButton.toolTip = "Create label map."
-    self.labelButton.enabled = True
-    #self.labelButton.checkable = True
-    parametersLayout.addRow(self.labelButton)
-    """ 
-    #
     # Image pre-processing
     #
     self.processGradientButton = qt.QPushButton("Image pre-processing gradient")
@@ -122,10 +112,12 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.processGradientButton.enabled = True
     parametersLayout.addRow(self.processGradientButton)
 
+    '''
     self.processFilterButton = qt.QPushButton("Image pre-processing edge")
     self.processFilterButton.toolTip = "Process image to ..."
     self.processFilterButton.enabled = True
     parametersLayout.addRow(self.processFilterButton)
+    '''
     
     #
     # Paint Button
@@ -161,6 +153,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.growButton.enabled = True
     parametersLayout.addRow(self.growButton)
 
+    '''
     #
     # Cross remove Button
     #
@@ -176,7 +169,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.connectivityButton.toolTip = "re-implementation of sergio's connectivity reduction."
     self.connectivityButton.enabled = True
     parametersLayout.addRow(self.connectivityButton)
-
+    '''
+    
     #
     # Paint Button
     #
@@ -201,8 +195,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.trimButton.toolTip = "try to see just the main blob and remove stuff not connected."
     self.trimButton.enabled = True
     parametersLayout.addRow(self.trimButton)
-    
 
+    '''
     #
     # Find outer edge
     #
@@ -210,21 +204,21 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.edgeButton.toolTip = "Try to find outer boundary of holey segmentation."
     self.edgeButton.enabled = True
     parametersLayout.addRow(self.edgeButton)
-
+    '''
+    
     # connections
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
-    #self.labelButton.connect('clicked(bool)', self.onLabelButton)
     self.processGradientButton.connect('clicked(bool)', self.onProcessGradientButton)
-    self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
+    #self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
-    self.crossButton.connect('clicked(bool)', self.onCrossButton)
-    self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
+    #self.crossButton.connect('clicked(bool)', self.onCrossButton)
+    #self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
     self.correctButton.connect('clicked(bool)', self.onCorrectButton)
     self.corrMaskButton.connect('clicked(bool)', self.onCorrectMaskButton)
     self.trimButton.connect('clicked(bool)', self.onTrimButton)
-    self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
+    #self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     self.threshold.connect('valuesChanged(double,double)', self.onThresholdValuesChanged)
@@ -281,13 +275,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
       #self.paint.removeObs()
     else:
       self.paintMode = True
-      '''
-      layoutManager = slicer.app.layoutManager()
-      viewWidget = layoutManager.sliceWidget('Red')
-      sliceWidget = viewWidget.sliceView()
-      interactor = sliceWidget.interactorStyle().GetInteractor()
-      #self.paint = ParLib.Paint.Paint(interactor)
-      '''
 
       # just in case?
       selectionNode = slicer.app.applicationLogic().GetSelectionNode()
@@ -355,14 +342,11 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
       sliceWidget = lm.sliceWidget('Red')
       self.painter = EditorLib.PaintEffectTool(sliceWidget)
 
-
   def onCorrectMaskButton(self):
     self.logic.runCorrectMask(self.masterNode, self.labelNode)
 
-
   def onTrimButton(self):
     self.logic.runTrimCorrect(self.masterNode, self.labelNode)
-    
       
   def onEdgeButton(self):
     self.logic.runFindEdge(self.masterNode, self.labelNode)
@@ -387,7 +371,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def setThresholdValues(self, min, max):
     self.threshold.setMinimumValue( min )
     self.threshold.setMaximumValue( max )
-    
+
 #
 # ParenchymaLogic
 #
@@ -404,7 +388,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     #ScriptedLoadableModuleLogic.__init__(self, parent)
     #self.editPaint = EditorLib.PaintEffectOptions()
 
-  # global variables 
+  # global variables for initial mask
   maskZ = 0
   centroidX = 0
   centroidY = 0
@@ -428,17 +412,33 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
+  def createLabelMap(self,masterNode):
+    self.delayDisplay('Creating label map')
+    masterName = masterNode.GetName()
+    mergeName = masterName + "-label"
+
+    self.delayDisplay(mergeName)
+    merge = slicer.modules.volumes.logic().CreateAndAddLabelVolume( slicer.mrmlScene, masterNode, mergeName )
+    #self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(volumeNode, merge))
+    labelColorTable = slicer.util.getNode('GenericAnatomyColors')
+    merge.GetDisplayNode().SetAndObserveColorNodeID( labelColorTable.GetID() )
+
+    # make the source node the active background, and the label node the active label
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
+    selectionNode.SetReferenceActiveVolumeID( masterNode.GetID() )
+    selectionNode.SetReferenceActiveLabelVolumeID( merge.GetID() )
+    slicer.app.applicationLogic().PropagateVolumeSelection(0)
+
+    return merge
+      
+
   def processGradient(self,masterNode):
 
     # now need to use gradient image filter to process image?
     masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
-    #gradientIF = SimpleITK.GradientMagnitudeImageFilter()
-    #gradientImage = gradientIF.Execute(masterImage)
     morphGradientIF = SimpleITK.MorphologicalGradientImageFilter()
     morphGradientIF.SetKernelRadius(3)
     morphGradientImage = morphGradientIF.Execute(masterImage)
-    
-    #gradientArray = SimpleITK.GetArrayFromImage(morphGradientImage) # is this in the right coordinate space?
 
     sitkUtils.PushToSlicer(morphGradientImage, 'gradientImage')
 
@@ -451,7 +451,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     testImage = testIF.Execute(SimpleITK.Cast(masterImage, SimpleITK.sitkFloat32), 0.0, 200.0, (5.0,5.0,5.0), (0.5,0.5,0.5) )
     
     sitkUtils.PushToSlicer(testImage, 'filterImage')
-
 
   def runMask(self,masterNode,labelNode):
     """
@@ -551,52 +550,56 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
             labelArray[i,j,k] = 1
           else:
             labelArray[i,j,k] = 0
+            
 
-    
-  def runCrossRemove(self,masterNode,labelNode,size_c):
+  # re-implementation of sergio's
+  def runCrossRemove(self, masterNode, labelNode, size_c):
 
-    #labelArray = slicer.util.array(labelNode.GetID())
-    masterArray = slicer.util.array(masterNode.GetID()) # should be binary connected image
+    labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID()) 
 
-    for i in range(0, masterArray.shape[0]):
+    # should be run on label array (copied over from connectedImage)
+    for i in range(0, labelArray.shape[0]):
       print('crossRemove:', i)
-      for j in range(size_c,masterArray.shape[1]-size_c):
-        for k in range(size_c,masterArray.shape[2]-size_c):
+      for j in range(size_c,labelArray.shape[1]-size_c):
+        for k in range(size_c,labelArray.shape[2]-size_c):
           sum_j = 0
           sum_k = 0
           # go out 2 pixels in each 2D direction (j,k)
-          sum_j = numpy.sum(masterArray[i,j-size_c:j+size_c+1,k])
-          sum_k = numpy.sum(masterArray[i,j,k-size_c:k+size_c+1])
+          sum_j = numpy.sum(labelArray[i,j-size_c:j+size_c+1,k])
+          sum_k = numpy.sum(labelArray[i,j,k-size_c:k+size_c+1])
           
-          if(masterArray[i,j,k] == 1):
+          if(labelArray[i,j,k] == 1):
             # check if not connected enough (and remove pixel if it is)
             if(sum_j <=1 or sum_k <=0):
-              masterArray[i,j,k] = 0
-          if(masterArray[i,j,k] == 0):
+              labelArray[i,j,k] = 0
+          if(labelArray[i,j,k] == 0):
             # check if is very connected (and add pixel if it is)
             if(sum_j >= (2*size_c) or sum_k >= (2*size_c)):
-              masterArray[i,j,k] = 1
+              labelArray[i,j,k] = 1
               
-
-  def runConnectivity(self,masterNode,labelNode, connectivity):
+  # re-implementation of sergio's
+  def runConnectivity(self, masterNode, labelNode, connectivity):
 
     labelArray = slicer.util.array(labelNode.GetID())
-    masterArray = slicer.util.array(masterNode.GetID()) # should be binary connected image
+    masterArray = slicer.util.array(masterNode.GetID()) 
 
-    print('running connectivity reduction')
-    for i in range(0, masterArray.shape[0]):
+    # should be run on label array (copied over from connectedImage)
+    for i in range(0, labelArray.shape[0]):
       print('connectivity:', i)
-      for j in range(5,masterArray.shape[1]-5):
-        for k in range(5,masterArray.shape[2]-5):
-          if(masterArray[i,j,k] == 1):
+      for j in range(5,labelArray.shape[1]-5):
+        for k in range(5,labelArray.shape[2]-5):
+          if(labelArray[i,j,k] == 1):
             sum_square = 0
-            sum_square = numpy.sum(masterArray[i,j-2:j+3,k-2:k+3]) - masterArray[i,j,k]
+            sum_square = numpy.sum(labelArray[i,j-2:j+3,k-2:k+3]) - labelArray[i,j,k]
             # if its not connected enough, remove pixel
             if sum_square < connectivity:
-              masterArray[i,j,k] = 17
+              labelArray[i,j,k] = 17
 
-
-  def runCorrectMask(self,masterNode,labelNode):
+  #
+  # STUFF FOR CORRECTION TOOL (below here)
+  #
+  def runCorrectMask(self, masterNode, labelNode):
 
     self.delayDisplay('Running the correction mask')
     # check there is a label map
@@ -611,13 +614,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print(masterArray.shape)
     # TODO: compare dimensions to check they match
 
-    # find everything inside the mask that is a part of the connected image
-    connectedNode = slicer.util.getNode('connectedImage')
-    connectedArray = slicer.util.array(connectedNode.GetID())
-
     mZ = 0
-    intensitiesInsideOriginal = []
-    #intensitiesInsideGradient = []
     # find the levels where there are annotations
     for i in range(0,labelArray.shape[0]):
       if numpy.max(labelArray[i,:,:]) == 5: # looking for red, which is label 5
@@ -631,10 +628,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
-            if isinside[j,k] == 0 and connectedArray[mZ,j,k] == 1:
-              labelArray[i,j,k] = 5
-              # get all the intensities from the actual + modified image
-              intensitiesInsideOriginal.append(masterArray[i,j,k])
             if isinside[j,k] == 0:
               labelArray[i,j,k] = 5
 
@@ -649,29 +642,38 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('centroid:', centroid)
     centX = int(centroid[0])
     centY = int(centroid[1])
-    
-    meanOriginal = numpy.mean(intensitiesInsideOriginal[:])
-    print('mean:', meanOriginal)
-    stdOriginal = numpy.std(intensitiesInsideOriginal[:])
-    print('standard deviation:', stdOriginal)
 
-    labelArray = self.modifyWrongArea(connectedArray, labelArray, mZ, 5)
+    labelArray = self.modifyWrongArea(labelArray, mZ, 5)
     labelNode.Modified()
            
     self.delayDisplay('Correction mask done')
     
 
-  def modifyWrongArea(self, connectedArray, labelArray, maskZ, numSlices):
+  def trackRemove(self, labelArray, maskZ, centroidX, centroidY):
+  
+    isConnected = False
+    '''
+    # track the centroid of the object under the correction mask
+    if labelArray[maskZ, centroidX, centroidY] > 0:
+      #regionGrow2D(maskZ, centroidX, centroidY, newLabel, eraseLabel, labelArray):  
+    
+    for i in range(0, labelArray.shape[0]):
+      for j in range(0,labelArray.shape[1]):
+        for k in range(0,labelArray.shape[2]):
+          
+    '''
+    
+  def modifyWrongArea(self, labelArray, maskZ, numSlices):
 
     print('in modifyWrongArea:', maskZ)
     # superior
     sup = maskZ + numSlices
-    if(sup > connectedArray.shape[0]):
-      sup = connectedArray.shape[0]
+    if(sup > labelArray.shape[0]):
+      sup = labelArray.shape[0]
     for i in range(maskZ+1, sup): # go over the prescribed number of slices
       flag = 0
-      for j in range(0,connectedArray.shape[1]):
-        for k in range(0,connectedArray.shape[2]):
+      for j in range(0,labelArray.shape[1]):
+        for k in range(0,labelArray.shape[2]):
           if labelArray[maskZ,j,k] == 5: # and connectedArray[i,j,k] == 1:
             labelArray[i,j,k] = 0 # erase the segemented region
             if flag == 0:
@@ -684,37 +686,39 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       inf = 0
     for i in range(inf, maskZ): # go over the prescribed number of slices
       flag = 0
-      for j in range(0,connectedArray.shape[1]):
-        for k in range(0,connectedArray.shape[2]):
+      for j in range(0,labelArray.shape[1]):
+        for k in range(0,labelArray.shape[2]):
           if labelArray[maskZ,j,k] == 5: # and connectedArray[i,j,k] == 1:
             labelArray[i,j,k] = 0 # erase the segemented region
             if flag == 0:
               print('erase inferior:', i)
               flag = 1
+
     return labelArray
   
 
-  def runTrimCorrect(self,masterNode,labelNode):
+  def runTrimCorrect(self, masterNode, labelNode):
 
     labelArray = slicer.util.array(labelNode.GetID())
     masterArray = slicer.util.array(masterNode.GetID())
-    connectedNode = slicer.util.getNode('connectedImage')
-    connectedArray = slicer.util.array(connectedNode.GetID())
     
-    labelArray = self.removeIsolatedArea(connectedArray, labelArray)
+    labelArray = self.removeIsolatedArea(labelArray)
     labelNode.Modified()
     print('finished run2ndCorrect')
 
     
-  def removeIsolatedArea(self, connectedArray, labelArray):
+  def removeIsolatedArea(self, labelArray):
 
     # detect main region
     newLabel = 4
     eraseLabel = 1
-    labelArray = self.regionGrow3D(newLabel, eraseLabel, connectedArray, labelArray)
+    global centroidX 
+    global centroidY
+    global maskZ
+    print('called region grow 3d:', maskZ)
+    labelArray = self.regionGrow3D(maskZ, centroidX, centroidY, newLabel, eraseLabel, labelArray)
 
     # delete everything in the label other than newLabel
-    
     print('removing unconnected')
     for i in range(0, labelArray.shape[0]):
       for j in range(0,labelArray.shape[1]):
@@ -725,15 +729,11 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('finished remove isolated area')
     
     
-  def regionGrow3D(self, newLabel, eraseLabel, connectedArray, labelArray):
+  def regionGrow3D(self, z,x,y, newLabel, eraseLabel, labelArray):
 
-    global centroidX 
-    global centroidY
-    global maskZ
-    print('called region grow 3d:', maskZ)
-    labelArray[maskZ, centroidX, centroidY] = newLabel
+    labelArray[z,x,y] = newLabel
     pixels = [] # keep list of pixels included in area
-    pixels.append([maskZ, centroidX, centroidY])
+    pixels.append([z,x,y])
 
     while len(pixels) > 0:
       #print('pixels length', len(pixels))
@@ -776,7 +776,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     return labelArray
   
 
-  def regionGrow2D(self, z,x,y, label, connectedArray, labelArray):
+  def regionGrow2D(self, z,x,y, newLabel, eraseLabel, labelArray):
 
     labelArray[z,x,y] = label
     pixels = [] # keep list of pixels included in area
@@ -787,29 +787,29 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       # get the latest pixel
       z,x,y = pixels.pop()
       # grow out to everything connected to this
-      if connectedArray[z,x+1,y] == 1 and labelArray[z,x+1,y] != label:
-        labelArray[z,x+1,y] = label
+      if labelArray[z,x+1,y] == eraseLabel:
+        labelArray[z,x+1,y] = newLabel
         pixels.append([z,x+1,y])
-      if connectedArray[z,x-1,y] == 1 and labelArray[z,x-1,y] != label:
-        labelArray[z,x-1,y] = label
+      if labelArray[z,x-1,y] == eraseLabel:
+        labelArray[z,x-1,y] = newLabel
         pixels.append([z,x-1,y])
-      if connectedArray[z,x,y+1] == 1 and labelArray[z,x,y+1] != label:
-        labelArray[z,x,y+1] = label
+      if labelArray[z,x,y+1] == eraseLabel:
+        labelArray[z,x,y+1] = newLabel
         pixels.append([z,x,y+1])
-      if connectedArray[z,x,y-1] == 1 and labelArray[z,x,y-1] != label:
-        labelArray[z,x,y-1] = label
+      if labelArray[z,x,y-1] == eraseLabel:
+        labelArray[z,x,y-1] = newLabel
         pixels.append([z,x,y-1])
-      if connectedArray[z,x+1,y+1] == 1 and labelArray[z,x+1,y+1] != label:
-        labelArray[z,x+1,y+1] = label
+      if labelArray[z,x+1,y+1] == eraseLabel:
+        labelArray[z,x+1,y+1] = newLabel
         pixels.append([z,x+1,y+1])
-      if connectedArray[z,x-1,y-1] == 1 and labelArray[z,x-1,y-1] != label:
-        labelArray[z,x-1,y-1] = label
+      if labelArray[z,x-1,y-1] == eraseLabel:
+        labelArray[z,x-1,y-1] = newLabel
         pixels.append([z,x-1,y-1])
-      if connectedArray[z,x+1,y-1] == 1 and labelArray[z,x+1,y-1] != label:
-        labelArray[z,x+1,y-1] = label
+      if labelArray[z,x+1,y-1] == eraseLabel:
+        labelArray[z,x+1,y-1] = newLabel
         pixels.append([z,x+1,y-1])
-      if connectedArray[z,x-1,y+1] == 1 and labelArray[z,x-1,y+1] != label:
-        labelArray[z,x-1,y+1] = label
+      if labelArray[z,x-1,y+1] == eraseLabel:
+        labelArray[z,x-1,y+1] = newLabel
         pixels.append([z,x-1,y+1])
 
     return label+1
@@ -819,17 +819,17 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
   def runFindEdge(self,masterNode,labelNode):
 
     # get the image
-    connectedArray = slicer.util.array(masterNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID())
     labelArray = slicer.util.array(labelNode.GetID())
 
     # loop through the slice (z)
-    for z in range(0,connectedArray.shape[0]):
+    for z in range(0,labelArray.shape[0]):
       label = 20
       # look for connected areas in 2D plane
-      for x in range(0,connectedArray.shape[1]):
-        for y in range(0,connectedArray.shape[2]):
-          if connectedArray[z,x,y] == 1 and labelArray[z,x,y] < 20:
-            label = self.regionGrow2D(z,x,y, label, connectedArray, labelArray)
+      for x in range(0,labelArray.shape[1]):
+        for y in range(0,labelArray.shape[2]):
+          if labelArray[z,x,y] < 20:
+            label = self.regionGrow2D(z,x,y, label, labelArray)
             print('called region grow', label-1)
             print('in layer', z)
 
@@ -873,26 +873,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
                   print('Point x: ', keepMin)
             '''
                       
-
-  def createLabelMap(self,masterNode):
-    self.delayDisplay('Creating label map')
-    masterName = masterNode.GetName()
-    mergeName = masterName + "-label"
-
-    self.delayDisplay(mergeName)
-    merge = slicer.modules.volumes.logic().CreateAndAddLabelVolume( slicer.mrmlScene, masterNode, mergeName )
-    #self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(volumeNode, merge))
-    labelColorTable = slicer.util.getNode('GenericAnatomyColors')
-    merge.GetDisplayNode().SetAndObserveColorNodeID( labelColorTable.GetID() )
-
-    # make the source node the active background, and the label node the active label
-    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
-    selectionNode.SetReferenceActiveVolumeID( masterNode.GetID() )
-    selectionNode.SetReferenceActiveLabelVolumeID( merge.GetID() )
-    slicer.app.applicationLogic().PropagateVolumeSelection(0)
-
-    return merge
-      
 
 
 
