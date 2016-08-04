@@ -615,6 +615,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     # TODO: compare dimensions to check they match
 
     mZ = 0
+    
     # find the levels where there are annotations
     for i in range(0,labelArray.shape[0]):
       if numpy.max(labelArray[i,:,:]) == 5: # looking for red, which is label 5
@@ -624,16 +625,20 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         annotatedSlice = masterArray[i,:,:]
         array = labelArray[i,:,:]            
         isinside = ParLib.Algorithms.segment(array, 5) # call function "segment"
+        segmentedInside = numpy.zeros(array.shape,'float')
         # print isinside
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
-            if isinside[j,k] == 0:
+            if isinside[j,k] == 0 and labelArray[i,j,k] > 0:
               labelArray[i,j,k] = 5
-
+              segmentedInside[j,k] = 1
+            elif isinside[j,k] == 0:
+              labelArray[i,j,k] = 5
+               
     # uint8 (0-255) ok for binary image, but cannot trust all images will stay within those bounds (ct/mri images can be encoded +/- numbers)?
-    invert = (isinside == 0).astype('uint8')   
-    roi = SimpleITK.GetImageFromArray(invert, isVector=False)
+    temp = segmentedInside.astype('uint8')   
+    roi = SimpleITK.GetImageFromArray(temp, isVector=False)
     print('size of itk image (label):', roi.GetSize())
     shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
     shapefilter.SetBackgroundValue(0)
@@ -643,7 +648,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     centX = int(centroid[0])
     centY = int(centroid[1])
 
-    labelArray = self.modifyWrongArea(labelArray, mZ, 5)
+    self.trackRemove(labelArray, mZ, centX, centY)
+    #labelArray = self.modifyWrongArea(labelArray, mZ, 5)
     labelNode.Modified()
            
     self.delayDisplay('Correction mask done')
@@ -652,16 +658,30 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
   def trackRemove(self, labelArray, maskZ, centroidX, centroidY):
   
     isConnected = False
-    '''
+
+    print('track remove')
     # track the centroid of the object under the correction mask
     if labelArray[maskZ, centroidX, centroidY] > 0:
-      #regionGrow2D(maskZ, centroidX, centroidY, newLabel, eraseLabel, labelArray):  
+      print('first layer')
+      for i in range(maskZ+1,labelArray.shape[0]): # move superior
+        print('z:', i)
+        if labelArray[i,centroidX,centroidY] > 0:
+          iArray = self.regionGrow2D(maskZ, centroidX, centroidY, 9, 5, labelArray)
+          # update centroid
+          temp = iArray.astype('uint8')   
+          roi = SimpleITK.GetImageFromArray(temp, isVector=False)
+          shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
+          shapefilter.SetBackgroundValue(0)
+          shapefilter.Execute(roi)
+          centroid = shapefilter.GetCentroid(1)
+          print('centroid:', centroid)
+          centroidX = int(centroid[0])
+          centroidY = int(centroid[1])
+
+      #for j in range(0,labelArray.shape[1]):
+      #for k in range(0,labelArray.shape[2]):
+        
     
-    for i in range(0, labelArray.shape[0]):
-      for j in range(0,labelArray.shape[1]):
-        for k in range(0,labelArray.shape[2]):
-          
-    '''
     
   def modifyWrongArea(self, labelArray, maskZ, numSlices):
 
@@ -778,10 +798,15 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
   def regionGrow2D(self, z,x,y, newLabel, eraseLabel, labelArray):
 
-    labelArray[z,x,y] = label
+    labelArray[z,x,y] = newLabel
     pixels = [] # keep list of pixels included in area
     pixels.append([z,x,y])
-      
+
+    # keep array of the area grown into (2D)
+    array = labelArray[z,:,:]  
+    segmentedInside = numpy.zeros(array.shape,'float')
+    segmentedInside[x,y] = newLabel
+    
     while len(pixels) > 0:
       #print('pixels length', len(pixels))
       # get the latest pixel
@@ -789,30 +814,38 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       # grow out to everything connected to this
       if labelArray[z,x+1,y] == eraseLabel:
         labelArray[z,x+1,y] = newLabel
+        segmentedInside[x+1,y] = 1
         pixels.append([z,x+1,y])
       if labelArray[z,x-1,y] == eraseLabel:
         labelArray[z,x-1,y] = newLabel
+        segmentedInside[x-1,y] = 1
         pixels.append([z,x-1,y])
       if labelArray[z,x,y+1] == eraseLabel:
         labelArray[z,x,y+1] = newLabel
+        segmentedInside[x,y+1] = 1
         pixels.append([z,x,y+1])
       if labelArray[z,x,y-1] == eraseLabel:
         labelArray[z,x,y-1] = newLabel
+        segmentedInside[x,y-1] = 1
         pixels.append([z,x,y-1])
       if labelArray[z,x+1,y+1] == eraseLabel:
         labelArray[z,x+1,y+1] = newLabel
+        segmentedInside[x+1,y+1] = 1
         pixels.append([z,x+1,y+1])
       if labelArray[z,x-1,y-1] == eraseLabel:
         labelArray[z,x-1,y-1] = newLabel
+        segmentedInside[x-1,y-1] = 1
         pixels.append([z,x-1,y-1])
       if labelArray[z,x+1,y-1] == eraseLabel:
         labelArray[z,x+1,y-1] = newLabel
+        segmentedInside[x+1,y-1] = 1
         pixels.append([z,x+1,y-1])
       if labelArray[z,x-1,y+1] == eraseLabel:
         labelArray[z,x-1,y+1] = newLabel
+        segmentedInside[x-1,y+1] = 1
         pixels.append([z,x-1,y+1])
 
-    return label+1
+    return segmentedInside
 
      
 
@@ -825,13 +858,15 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     # loop through the slice (z)
     for z in range(0,labelArray.shape[0]):
       label = 20
+      print('in layer', z)
       # look for connected areas in 2D plane
       for x in range(0,labelArray.shape[1]):
         for y in range(0,labelArray.shape[2]):
           if labelArray[z,x,y] < 20:
-            label = self.regionGrow2D(z,x,y, label, labelArray)
-            print('called region grow', label-1)
-            print('in layer', z)
+            self.regionGrow2D(z,x,y, label, labelArray)
+            print('called region grow', label)
+            label = label+1
+            
 
             '''
             # loop over the 1 colour region to find edges
