@@ -112,12 +112,11 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.processGradientButton.enabled = True
     parametersLayout.addRow(self.processGradientButton)
 
-    '''
     self.processFilterButton = qt.QPushButton("Image pre-processing edge")
     self.processFilterButton.toolTip = "Process image to ..."
     self.processFilterButton.enabled = True
     parametersLayout.addRow(self.processFilterButton)
-    '''
+
     
     #
     # Paint Button
@@ -210,7 +209,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
     self.processGradientButton.connect('clicked(bool)', self.onProcessGradientButton)
-    #self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
+    self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
     #self.crossButton.connect('clicked(bool)', self.onCrossButton)
@@ -619,7 +618,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     # find the levels where there are annotations
     for i in range(0,labelArray.shape[0]):
       if numpy.max(labelArray[i,:,:]) == 5: # looking for red, which is label 5
-        print('in z:', i)
+        print('in z (runCorrectMask):', i)
         mZ = i
         # send the array of the one level
         annotatedSlice = masterArray[i,:,:]
@@ -650,37 +649,139 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     self.trackRemove(labelArray, mZ, centX, centY)
     #labelArray = self.modifyWrongArea(labelArray, mZ, 5)
+    
+    # detect main region
+    #global centroidX 
+    #global centroidY
+    #global maskZ
+    #labelArray = self.grow2DCentroid(labelArray, maskZ, centroidX, centroidY)
+
     labelNode.Modified()
            
     self.delayDisplay('Correction mask done')
     
+    
+  def trackRemove(self, labelArray, maskZ, centX, centY):
 
-  def trackRemove(self, labelArray, maskZ, centroidX, centroidY):
-  
-    isConnected = False
+    print('trackRemove')
+    # grow into area unless the centroid has shifted siginficantly
 
-    print('track remove')
-    # track the centroid of the object under the correction mask
-    if labelArray[maskZ, centroidX, centroidY] > 0:
-      print('first layer')
-      for i in range(maskZ+1,labelArray.shape[0]): # move superior
-        print('z:', i)
-        if labelArray[i,centroidX,centroidY] > 0:
-          iArray = self.regionGrow2D(maskZ, centroidX, centroidY, 9, 5, labelArray)
-          # update centroid
-          temp = iArray.astype('uint8')   
-          roi = SimpleITK.GetImageFromArray(temp, isVector=False)
-          shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
-          shapefilter.SetBackgroundValue(0)
-          shapefilter.Execute(roi)
-          centroid = shapefilter.GetCentroid(1)
-          print('centroid:', centroid)
-          centroidX = int(centroid[0])
-          centroidY = int(centroid[1])
+    newLabel = 5
 
-      #for j in range(0,labelArray.shape[1]):
-      #for k in range(0,labelArray.shape[2]):
+    # flip them for label map?
+    superiorCentX = centY
+    superiorCentY = centX
+    inferiorCentX = centY
+    inferiorCentY = centX
+    
+    if labelArray[maskZ, centY, centX] > 0:
+      eraseLabel = labelArray[maskZ,centY,centX]
+      # z,x,y, newLabel, eraseLabel, labelArray
+      iArray = self.regionGrow2D(maskZ, centY, centX, newLabel, eraseLabel, labelArray)
+    
+    for i in range(maskZ+1,labelArray.shape[0]): # move superior
+      isConnected = False
+      if labelArray[i,superiorCentX,superiorCentY] > 0: # check if still in segmented area
+        eraseLabel = labelArray[i,superiorCentX,superiorCentY]
+        isConnected = True
+        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, newLabel, eraseLabel, labelArray)
+      if isConnected == False:
+        break # break out of enclosing for loop
+      # update centroid
+      prevCentY = superiorCentY
+      prevCentX = superiorCentX
+      temp = iArray.astype('uint8')   
+      roi = SimpleITK.GetImageFromArray(temp, isVector=False)
+      shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
+      shapefilter.SetBackgroundValue(0)
+      shapefilter.Execute(roi)
+      centroid = shapefilter.GetCentroid(1)
+      print('centroid:', centroid)
+      superiorCentY = int(centroid[0])
+      superiorcentX = int(centroid[1])
+      if abs(prevCentX - superiorCentX) > 10 and abs(prevCentY - superiorCentY) > 10:
+        break # break out of enclosing for loop
+
+    for i in range(maskZ-1,0,-1): # move inferior
+      isConnected = False
+      if labelArray[i,inferiorCentX,inferiorCentY] > 0: # check if still in segmented area
+        eraseLabel = labelArray[i,inferiorCentX,inferiorCentY]
+        isConnected = True
+        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, newLabel, eraseLabel, labelArray)
+      if isConnected == False:
+        break # break out of enclosing for loop
+      # update centroid
+      prevCentX = inferiorCentY
+      prevCentX = inferiorCentX
+      temp = iArray.astype('uint8')   
+      roi = SimpleITK.GetImageFromArray(temp, isVector=False)
+      shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
+      shapefilter.SetBackgroundValue(0)
+      shapefilter.Execute(roi)
+      centroid = shapefilter.GetCentroid(1)
+      print('centroid:', centroid)
+      inferiorCentY = int(centroid[0])
+      inferiorCentX = int(centroid[1])
+      if abs(prevCentX - inferiorCentX) > 10 and abs(prevCentY - inferiorCentY) > 10:
+        break # break out of enclosing for loop
         
+    return labelArray
+
+
+  def grow2DCentroid(self, labelArray, maskZ, centX, centY):
+
+    newLabel = 4
+    print('called grow 2d centroid:', maskZ, centX, centY)
+    # flip them for label map?
+    superiorCentX = centY
+    superiorCentY = centX
+    inferiorCentX = centY
+    inferiorCentY = centX
+    
+    if labelArray[maskZ, centY, centX] > 0:
+      eraseLabel = labelArray[maskZ,centY,centX]
+      # z,x,y, newLabel, eraseLabel, labelArray
+      iArray = self.regionGrow2D(maskZ, centY, centX, newLabel, eraseLabel, labelArray)
+    
+    for i in range(maskZ+1,labelArray.shape[0]): # move superior
+      isConnected = False
+      if labelArray[i,superiorCentX,superiorCentY] > 0: # check if still in segmented area
+        eraseLabel = labelArray[i,superiorCentX,superiorCentY]
+        isConnected = True
+        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, newLabel, eraseLabel, labelArray)
+      if isConnected == False:
+        break # break out of enclosing for loop
+      # update centroid
+      temp = iArray.astype('uint8')   
+      roi = SimpleITK.GetImageFromArray(temp, isVector=False)
+      shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
+      shapefilter.SetBackgroundValue(0)
+      shapefilter.Execute(roi)
+      centroid = shapefilter.GetCentroid(1)
+      print('centroid:', centroid)
+      superiorCentY = int(centroid[0])
+      superiorcentX = int(centroid[1])
+
+    for i in range(maskZ-1,0,-1): # move inferior
+      isConnected = False
+      if labelArray[i,inferiorCentX,inferiorCentY] > 0: # check if still in segmented area
+        eraseLabel = labelArray[i,inferiorCentX,inferiorCentY]
+        isConnected = True
+        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, newLabel, eraseLabel, labelArray)
+      if isConnected == False:
+        break # break out of enclosing for loop
+      # update centroid
+      temp = iArray.astype('uint8')   
+      roi = SimpleITK.GetImageFromArray(temp, isVector=False)
+      shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
+      shapefilter.SetBackgroundValue(0)
+      shapefilter.Execute(roi)
+      centroid = shapefilter.GetCentroid(1)
+      print('centroid:', centroid)
+      inferiorCentY = int(centroid[0])
+      inferiorCentX = int(centroid[1])
+        
+    return labelArray
     
     
   def modifyWrongArea(self, labelArray, maskZ, numSlices):
@@ -704,7 +805,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     inf = maskZ - numSlices+1
     if(inf < 0):
       inf = 0
-    for i in range(inf, maskZ): # go over the prescribed number of slices
+    for i in range(inf, maskZ, -1): # go over the prescribed number of slices
       flag = 0
       for j in range(0,labelArray.shape[1]):
         for k in range(0,labelArray.shape[2]):
@@ -802,6 +903,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     pixels = [] # keep list of pixels included in area
     pixels.append([z,x,y])
 
+    print('called regionGrow2d:', z, x, y)
+    
     # keep array of the area grown into (2D)
     array = labelArray[z,:,:]  
     segmentedInside = numpy.zeros(array.shape,'float')
