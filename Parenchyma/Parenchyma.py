@@ -180,20 +180,28 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.correctButton)
 
     #
-    # Apply correction
+    # Track centroid under mask
     #
-    self.corrMaskButton = qt.QPushButton("Apply correction")
-    self.corrMaskButton.toolTip = "try to use correction mask, and feed into itk filters to remove areas bled into."
-    self.corrMaskButton.enabled = True
-    parametersLayout.addRow(self.corrMaskButton)
+    self.trackMaskButton = qt.QPushButton("Track correction")
+    self.trackMaskButton.toolTip = "Try to use correction mask, and track the centroid in has inside it"
+    self.trackMaskButton.enabled = True
+    parametersLayout.addRow(self.trackMaskButton)
 
     #
-    # Apply correction
+    # Erase mask (including all under)
     #
-    self.trimButton = qt.QPushButton("Remove unconnected")
-    self.trimButton.toolTip = "try to see just the main blob and remove stuff not connected."
-    self.trimButton.enabled = True
-    parametersLayout.addRow(self.trimButton)
+    self.eraseMaskButton = qt.QPushButton("Erase correction")
+    self.eraseMaskButton.toolTip = "Delete the correction mask to hopefully orphan other areas"
+    self.eraseMaskButton.enabled = True
+    parametersLayout.addRow(self.eraseMaskButton)
+    
+    #
+    # Remove unconnected
+    #
+    self.removeIsolatedButton = qt.QPushButton("Remove unconnected")
+    self.removeIsolatedButton.toolTip = "try to see just the main blob and remove stuff not connected."
+    self.removeIsolatedButton.enabled = True
+    parametersLayout.addRow(self.removeIsolatedButton)
 
     '''
     #
@@ -215,8 +223,9 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     #self.crossButton.connect('clicked(bool)', self.onCrossButton)
     #self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
     self.correctButton.connect('clicked(bool)', self.onCorrectButton)
-    self.corrMaskButton.connect('clicked(bool)', self.onCorrectMaskButton)
-    self.trimButton.connect('clicked(bool)', self.onTrimButton)
+    self.trackMaskButton.connect('clicked(bool)', self.onTrackMaskButton)
+    self.eraseMaskButton.connect('clicked(bool)', self.onEraseMaskButton)
+    self.removeIsolatedButton.connect('clicked(bool)', self.onRemoveIsolatedButton)
     #self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
@@ -341,11 +350,14 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
       sliceWidget = lm.sliceWidget('Red')
       self.painter = EditorLib.PaintEffectTool(sliceWidget)
 
-  def onCorrectMaskButton(self):
-    self.logic.runCorrectMask(self.masterNode, self.labelNode)
+  def onTrackMaskButton(self):
+    self.logic.runTrackMask(self.masterNode, self.labelNode)
 
-  def onTrimButton(self):
-    self.logic.runTrimCorrect(self.masterNode, self.labelNode)
+  def onEraseMaskButton(self):
+    self.logic.runEraseMask(self.masterNode, self.labelNode)
+
+  def onRemoveIsolatedButton(self):
+    self.logic.runRemoveIsolated(self.masterNode, self.labelNode)
       
   def onEdgeButton(self):
     self.logic.runFindEdge(self.masterNode, self.labelNode)
@@ -595,12 +607,13 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
             if sum_square < connectivity:
               labelArray[i,j,k] = 17
 
+              
   #
   # STUFF FOR CORRECTION TOOL (below here)
   #
-  def runCorrectMask(self, masterNode, labelNode):
+  def runTrackMask(self, masterNode, labelNode):
 
-    self.delayDisplay('Running the correction mask')
+    self.delayDisplay('Tracking the correction mask')
     # check there is a label map
     self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode))
     # TODO: do not run algorithm if there is no label map
@@ -646,87 +659,12 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('centroid:', centroid)
     centX = int(centroid[0])
     centY = int(centroid[1])
-
-    self.trackRemove(labelArray, mZ, centX, centY)
-    #labelArray = self.modifyWrongArea(labelArray, mZ, 5)
     
-    # detect main region
-    #global centroidX 
-    #global centroidY
-    #global maskZ
-    #labelArray = self.grow2DCentroid(labelArray, maskZ, centroidX, centroidY)
+    labelArray = self.grow2DCentroid(labelArray, mZ, centX, centY)
 
     labelNode.Modified()
            
     self.delayDisplay('Correction mask done')
-    
-    
-  def trackRemove(self, labelArray, maskZ, centX, centY):
-
-    print('trackRemove')
-    # grow into area unless the centroid has shifted siginficantly
-
-    newLabel = 5
-
-    # flip them for label map?
-    superiorCentX = centY
-    superiorCentY = centX
-    inferiorCentX = centY
-    inferiorCentY = centX
-    
-    if labelArray[maskZ, centY, centX] > 0:
-      eraseLabel = labelArray[maskZ,centY,centX]
-      # z,x,y, newLabel, eraseLabel, labelArray
-      iArray = self.regionGrow2D(maskZ, centY, centX, newLabel, eraseLabel, labelArray)
-    
-    for i in range(maskZ+1,labelArray.shape[0]): # move superior
-      isConnected = False
-      if labelArray[i,superiorCentX,superiorCentY] > 0: # check if still in segmented area
-        eraseLabel = labelArray[i,superiorCentX,superiorCentY]
-        isConnected = True
-        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, newLabel, eraseLabel, labelArray)
-      if isConnected == False:
-        break # break out of enclosing for loop
-      # update centroid
-      prevCentY = superiorCentY
-      prevCentX = superiorCentX
-      temp = iArray.astype('uint8')   
-      roi = SimpleITK.GetImageFromArray(temp, isVector=False)
-      shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
-      shapefilter.SetBackgroundValue(0)
-      shapefilter.Execute(roi)
-      centroid = shapefilter.GetCentroid(1)
-      print('centroid:', centroid)
-      superiorCentY = int(centroid[0])
-      superiorcentX = int(centroid[1])
-      if abs(prevCentX - superiorCentX) > 10 and abs(prevCentY - superiorCentY) > 10:
-        break # break out of enclosing for loop
-
-    for i in range(maskZ-1,0,-1): # move inferior
-      isConnected = False
-      if labelArray[i,inferiorCentX,inferiorCentY] > 0: # check if still in segmented area
-        eraseLabel = labelArray[i,inferiorCentX,inferiorCentY]
-        isConnected = True
-        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, newLabel, eraseLabel, labelArray)
-      if isConnected == False:
-        break # break out of enclosing for loop
-      # update centroid
-      prevCentX = inferiorCentY
-      prevCentX = inferiorCentX
-      temp = iArray.astype('uint8')   
-      roi = SimpleITK.GetImageFromArray(temp, isVector=False)
-      shapefilter = SimpleITK.LabelShapeStatisticsImageFilter()
-      shapefilter.SetBackgroundValue(0)
-      shapefilter.Execute(roi)
-      centroid = shapefilter.GetCentroid(1)
-      print('centroid:', centroid)
-      inferiorCentY = int(centroid[0])
-      inferiorCentX = int(centroid[1])
-      if abs(prevCentX - inferiorCentX) > 10 and abs(prevCentY - inferiorCentY) > 10:
-        break # break out of enclosing for loop
-        
-    return labelArray
-
 
   def grow2DCentroid(self, labelArray, maskZ, centX, centY):
 
@@ -741,7 +679,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     if labelArray[maskZ, centY, centX] > 0:
       eraseLabel = labelArray[maskZ,centY,centX]
       # z,x,y, newLabel, eraseLabel, labelArray
-      iArray = self.regionGrow2D(maskZ, centY, centX, newLabel, eraseLabel, labelArray)
+      # erase the mask
+      iArray = self.regionGrow2D(maskZ, centY, centX, 0, eraseLabel, labelArray)
     
     for i in range(maskZ+1,labelArray.shape[0]): # move superior
       isConnected = False
@@ -758,7 +697,16 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       shapefilter.SetBackgroundValue(0)
       shapefilter.Execute(roi)
       centroid = shapefilter.GetCentroid(1)
-      print('centroid:', centroid)
+      print('centroid:', int(centroid[0]), int(centroid[1]), 'prev:', superiorCentY, superiorCentX )
+      distance = numpy.sqrt((superiorCentY - int(centroid[0]))**2 + (superiorCentX - int(centroid[1]))**2)
+      print('moved (superior):', distance)
+      if distance > 20:
+        # go back one level before the break and switch eraselable and newlabel
+        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, eraseLabel, newLabel, labelArray)
+        break
+      else:
+        # ok to erase previous level
+        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, 0, newLabel, labelArray)
       superiorCentY = int(centroid[0])
       superiorcentX = int(centroid[1])
 
@@ -777,12 +725,58 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       shapefilter.SetBackgroundValue(0)
       shapefilter.Execute(roi)
       centroid = shapefilter.GetCentroid(1)
-      print('centroid:', centroid)
+      print('centroid:', int(centroid[0]), int(centroid[1]), 'prev:', inferiorCentY, inferiorCentX )
+      distance = numpy.sqrt((inferiorCentY - int(centroid[0]))**2 + (inferiorCentX - int(centroid[1]))**2)
+      print('moved (inferior):', distance )
+      if distance > 20:
+        # go back one level before the break and switch eraselable and newlabel
+        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, eraseLabel, newLabel, labelArray)
+        break
+      else:
+        # ok to erase previous level
+        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, 0, newLabel, labelArray)
       inferiorCentY = int(centroid[0])
       inferiorCentX = int(centroid[1])
         
     return labelArray
+
+  def runEraseMask(self, masterNode, labelNode):
+
+    self.delayDisplay('Erasing the correction mask')
+    # check there is a label map
+    self.delayDisplay(slicer.modules.volumes.logic().CheckForLabelVolumeValidity(masterNode, labelNode))
+    # TODO: do not run algorithm if there is no label map
     
+    # get the drawn mask
+    labelArray = slicer.util.array(labelNode.GetID())
+    masterArray = slicer.util.array(masterNode.GetID())
+    
+    print(labelArray.shape)
+    print(masterArray.shape)
+    # TODO: compare dimensions to check they match
+
+    mZ = 0
+    
+    # find the levels where there are annotations
+    for i in range(0,labelArray.shape[0]):
+      if numpy.max(labelArray[i,:,:]) == 5: # looking for red, which is label 5
+        print('in z (runCorrectMask):', i)
+        mZ = i
+        # send the array of the one level
+        annotatedSlice = masterArray[i,:,:]
+        array = labelArray[i,:,:]            
+        isinside = ParLib.Algorithms.segment(array, 5) # call function "segment"
+        segmentedInside = numpy.zeros(array.shape,'float')
+        # print isinside
+        # modify the label map to show what pixels are said to be inside the circle / mask
+        for j in range(0,isinside.shape[0]):
+          for k in range(0,isinside.shape[1]):
+            if isinside[j,k] == 0:
+              labelArray[i,j,k] = 0
+
+    labelNode.Modified()
+    self.delayDisplay('Erasing mask done')
+            
     
   def modifyWrongArea(self, labelArray, maskZ, numSlices):
 
@@ -817,27 +811,22 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     return labelArray
   
-
-  def runTrimCorrect(self, masterNode, labelNode):
+  # when click removeIsolateButton
+  def runRemoveIsolated(self, masterNode, labelNode):
 
     labelArray = slicer.util.array(labelNode.GetID())
     masterArray = slicer.util.array(masterNode.GetID())
-    
-    labelArray = self.removeIsolatedArea(labelArray)
-    labelNode.Modified()
-    print('finished run2ndCorrect')
-
-    
-  def removeIsolatedArea(self, labelArray):
 
     # detect main region
-    newLabel = 4
-    eraseLabel = 1
     global centroidX 
     global centroidY
     global maskZ
+    eraseLabel = labelArray[maskZ,centroidY,centroidX] # which way around should x and y be here?
+    newLabel = eraseLabel+1
+    if(newLabel == 5):
+      newLabel = 6 # skip the red for corrections
     print('called region grow 3d:', maskZ)
-    labelArray = self.regionGrow3D(maskZ, centroidX, centroidY, newLabel, eraseLabel, labelArray)
+    labelArray = self.regionGrow3D(maskZ, centroidY, centroidX, newLabel, eraseLabel, labelArray)
 
     # delete everything in the label other than newLabel
     print('removing unconnected')
@@ -847,6 +836,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
           if labelArray[i,j,k] != newLabel:
             labelArray[i,j,k] = 0
 
+    labelNode.Modified()
     print('finished remove isolated area')
     
     
