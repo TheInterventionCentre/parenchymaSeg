@@ -105,19 +105,26 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.selectButton)
 
     #
+    # Gradient Button
+    #
+    self.gradientButton = qt.QPushButton("Gradient - sergio reimplementation")
+    self.gradientButton.toolTip = "re-implementation of sergio's gradient."
+    self.gradientButton.enabled = True
+    parametersLayout.addRow(self.gradientButton)
+
+    #
     # Image pre-processing
     #
-    self.processGradientButton = qt.QPushButton("Image pre-processing gradient")
+    self.processGradientButton = qt.QPushButton("Image pre-processing ITK")
     self.processGradientButton.toolTip = "Process image to enhance differences between areas"
     self.processGradientButton.enabled = True
     parametersLayout.addRow(self.processGradientButton)
 
-    self.processFilterButton = qt.QPushButton("Image pre-processing edge")
-    self.processFilterButton.toolTip = "Process image to ..."
-    self.processFilterButton.enabled = True
-    parametersLayout.addRow(self.processFilterButton)
+    #self.processFilterButton = qt.QPushButton("Image pre-processing edge")
+    #self.processFilterButton.toolTip = "Process image to ..."
+    #self.processFilterButton.enabled = True
+    #parametersLayout.addRow(self.processFilterButton)
 
-    
     #
     # Paint Button
     #
@@ -171,7 +178,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     '''
     
     #
-    # Paint Button
+    # Paint Button (correction)
     #
     self.correctButton = qt.QPushButton("Correct")
     self.correctButton.toolTip = "Turn on paint for annotating corrections."
@@ -217,11 +224,14 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
     self.processGradientButton.connect('clicked(bool)', self.onProcessGradientButton)
-    self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
+    #self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
+    
+    self.gradientButton.connect('clicked(bool)', self.onGradientButton)
     #self.crossButton.connect('clicked(bool)', self.onCrossButton)
     #self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
+    
     self.correctButton.connect('clicked(bool)', self.onCorrectButton)
     self.trackMaskButton.connect('clicked(bool)', self.onTrackMaskButton)
     self.eraseMaskButton.connect('clicked(bool)', self.onEraseMaskButton)
@@ -315,8 +325,11 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onGrowButton(self):
     self.logic.runThreshold(self.masterNode, self.labelNode)
 
+  def onGradientButton(self):
+    self.logic.runGradient(self.masterNode)
+
   def onCrossButton(self):
-    self.logic.runCrossRemove(self.masterNode, self.labelNode, 2) # need to pass in size of cross
+    self.logic.runCrossRemove(self.masterNode, self.labelNode, 2) # need to pass in size of cross 
 
   def onConnectivityButton(self):
     self.logic.runConnectivity(self.masterNode, self.labelNode, 10) # need to pass in number of pixels around it that need to be 1
@@ -447,11 +460,25 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     # now need to use gradient image filter to process image?
     masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+
+    global mean
+    global std
+
+    '''
+    sigmoidIF = SimpleITK.SigmoidImageFilter()
+    sigmoidIF.SetBeta(mean-std)
+    sigmoidIF.SetAlpha(std)
+    sigmoidIF.SetOutputMaximum(mean+(std*3))
+    sigmoidIF.SetOutputMinimum(mean-(std*3))
+    sigmoidImage = sigmoidIF.Execute(masterImage)
+    '''
+    
     morphGradientIF = SimpleITK.MorphologicalGradientImageFilter()
     morphGradientIF.SetKernelRadius(3)
     morphGradientImage = morphGradientIF.Execute(masterImage)
 
-    sitkUtils.PushToSlicer(morphGradientImage, 'gradientImage')
+    sitkUtils.PushToSlicer(morphGradientImage, 'morphGradientImage')
+    
 
   def processFilter(self,masterNode):
 
@@ -561,7 +588,43 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
             labelArray[i,j,k] = 1
           else:
             labelArray[i,j,k] = 0
+
             
+  # gradient filter
+  def runGradient(self, masterNode):
+
+    global mean
+    global std
+
+    tempImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+    '''
+    castIF = SimpleITK.CastImageFilter()
+    castIF.SetOutputPixelType(SimpleITK.sitkFloat32)
+    masterImage = castIF.Execute(tempImage)
+    
+    smoothIF = SimpleITK.GradientAnisotropicDiffusionImageFilter()
+    spacing = masterImage.GetSpacing()
+    min_spacing = numpy.min(numpy.array(spacing))
+    smoothIF.SetTimeStep(min_spacing/(math.pow(2, 4)))
+    smoothIF.SetNumberOfIterations(10)
+    smoothIF.SetConductanceParameter(10)
+    smoothImage = smoothIF.Execute(masterImage)
+
+    sitkUtils.PushToSlicer(smoothImage, 'smoothImage')
+    print('Done smoothing')
+    '''
+    
+    smoothArray = SimpleITK.GetArrayFromImage(tempImage)
+    gradientArray = SimpleITK.GetArrayFromImage(tempImage) # duplicate to modify this one
+
+    for j in range(1, smoothArray.shape[1]-2): # X
+      for k in range(1, smoothArray.shape[2]-2): # Y
+        gradientArray[:,j,k] = numpy.sum(numpy.sum(numpy.abs(smoothArray[:, j-2:j+2, k-2:k+2] - mean), axis=2), axis=1) / 9
+
+    gradientImage = SimpleITK.GetImageFromArray(gradientArray)
+    sitkUtils.PushToSlicer(gradientImage, 'gradientImage')
+    print('Done sergio gradient')
+    
 
   # re-implementation of sergio's
   def runCrossRemove(self, masterNode, labelNode, size_c):
