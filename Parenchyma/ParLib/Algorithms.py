@@ -1,6 +1,276 @@
 import numpy
 import SimpleITK
 
+# grow from z,x,y, in 3D, erasing one label and putting into place another
+def regionGrow3D(z,x,y, newLabel, eraseLabel, labelArray):
+
+  labelArray[z,x,y] = newLabel
+  pixels = [] # keep list of pixels included in area
+  pixels.append([z,x,y])
+
+  print('called regionGrow3d:', z, x, y)
+
+  while len(pixels) > 0:
+    #print('pixels length', len(pixels))
+    # get the latest pixel
+    z,x,y = pixels.pop()
+    if z < labelArray.shape[0]-1 and z > 1 and x < labelArray.shape[1]-1 and x > 1 and y < labelArray.shape[2]-1 and x > 1:
+      # grow out to everything connected to this
+      if labelArray[z,x+1,y] == eraseLabel:
+        labelArray[z,x+1,y] = newLabel
+        pixels.append([z,x+1,y])
+      if labelArray[z,x-1,y] == eraseLabel:
+        labelArray[z,x-1,y] = newLabel
+        pixels.append([z,x-1,y])
+      if labelArray[z,x,y+1] == eraseLabel:
+        labelArray[z,x,y+1] = newLabel
+        pixels.append([z,x,y+1])
+      if labelArray[z,x,y-1] == eraseLabel:
+        labelArray[z,x,y-1] = newLabel
+        pixels.append([z,x,y-1])
+      if labelArray[z,x+1,y+1] == eraseLabel:
+        labelArray[z,x+1,y+1] = newLabel
+        pixels.append([z,x+1,y+1])
+      if labelArray[z,x-1,y-1] == eraseLabel:
+        labelArray[z,x-1,y-1] = newLabel
+        pixels.append([z,x-1,y-1])
+      if labelArray[z,x+1,y-1] == eraseLabel:
+        labelArray[z,x+1,y-1] = newLabel
+        pixels.append([z,x+1,y-1])
+      if labelArray[z,x-1,y+1] == eraseLabel:
+        labelArray[z,x-1,y+1] = newLabel
+        pixels.append([z,x-1,y+1])
+      # z direction (up / down)
+      if labelArray[z+1,x,y] == eraseLabel:
+        labelArray[z+1,x,y] = newLabel
+        pixels.append([z+1,x,y])
+      if labelArray[z-1,x,y] == eraseLabel:
+        labelArray[z-1,x,y] = newLabel
+        pixels.append([z-1,x,y])
+
+  return labelArray
+  
+# grow from z,x,y, in 2D, erasing one label and putting into place another
+def regionGrow2D(z,x,y, newLabel, eraseLabel, labelArray):
+
+  labelArray[z,x,y] = newLabel
+  pixels = [] # keep list of pixels included in area
+  pixels.append([z,x,y])
+
+  print('called regionGrow2d:', z, x, y)
+    
+  # keep array of the area grown into (2D)
+  array = labelArray[z,:,:]  
+  segmentedInside = numpy.zeros(array.shape,'float')
+  segmentedInside[x,y] = newLabel
+    
+  while len(pixels) > 0:
+    #print('pixels length', len(pixels))
+    # get the latest pixel
+    z,x,y = pixels.pop()
+    # grow out to everything connected to this
+    if labelArray[z,x+1,y] == eraseLabel:
+      labelArray[z,x+1,y] = newLabel
+      segmentedInside[x+1,y] = 1
+      pixels.append([z,x+1,y])
+    if labelArray[z,x-1,y] == eraseLabel:
+      labelArray[z,x-1,y] = newLabel
+      segmentedInside[x-1,y] = 1
+      pixels.append([z,x-1,y])
+    if labelArray[z,x,y+1] == eraseLabel:
+      labelArray[z,x,y+1] = newLabel
+      segmentedInside[x,y+1] = 1
+      pixels.append([z,x,y+1])
+    if labelArray[z,x,y-1] == eraseLabel:
+      labelArray[z,x,y-1] = newLabel
+      segmentedInside[x,y-1] = 1
+      pixels.append([z,x,y-1])
+    if labelArray[z,x+1,y+1] == eraseLabel:
+      labelArray[z,x+1,y+1] = newLabel
+      segmentedInside[x+1,y+1] = 1
+      pixels.append([z,x+1,y+1])
+    if labelArray[z,x-1,y-1] == eraseLabel:
+      labelArray[z,x-1,y-1] = newLabel
+      segmentedInside[x-1,y-1] = 1
+      pixels.append([z,x-1,y-1])
+    if labelArray[z,x+1,y-1] == eraseLabel:
+      labelArray[z,x+1,y-1] = newLabel
+      segmentedInside[x+1,y-1] = 1
+      pixels.append([z,x+1,y-1])
+    if labelArray[z,x-1,y+1] == eraseLabel:
+      labelArray[z,x-1,y+1] = newLabel
+      segmentedInside[x-1,y+1] = 1
+      pixels.append([z,x-1,y+1])
+
+  return segmentedInside
+'''
+def copyGrow2D(z,x,y, labelArray, baseArray):
+
+  labelArray[z,x,y] = newLabel
+  pixels = [] # keep list of pixels included in area
+  pixels.append([z,x,y])
+
+  print('called copyGrow2d:', z, x, y)
+    
+  # keep array of the area grown into (2D)
+  array = labelArray[z,:,:]  
+  segmentedInside = numpy.zeros(array.shape,'float')
+  segmentedInside[x,y] = newLabel
+    
+  while len(pixels) > 0:
+    #print('pixels length', len(pixels))
+    # get the latest pixel
+    z,x,y = pixels.pop()
+    # grow out to everything connected to this
+    if baseArray[z,x+1,y] > 0:
+      labelArray[z,x+1,y] = 1
+      segmentedInside[x+1,y] = 1
+      pixels.append([z,x+1,y])
+    if baseArray[z,x-1,y] > 0:
+      labelArray[z,x-1,y] = 1
+      segmentedInside[x-1,y] = 1
+      pixels.append([z,x-1,y])
+    if baseArray[z,x,y+1] == > 0:
+      labelArray[z,x,y+1] = 1
+      segmentedInside[x,y+1] = 1
+      pixels.append([z,x,y+1])
+    if baseArray[z,x,y-1] > 0:
+      labelArray[z,x,y-1] = 1
+      segmentedInside[x,y-1] = 1
+      pixels.append([z,x,y-1])
+    if baseArray[z,x+1,y+1] > 0:
+      labelArray[z,x+1,y+1] = 1
+      segmentedInside[x+1,y+1] = 1
+      pixels.append([z,x+1,y+1])
+    if baseArray[z,x-1,y-1] > 0:
+      labelArray[z,x-1,y-1] = 1
+      segmentedInside[x-1,y-1] = 1
+      pixels.append([z,x-1,y-1])
+    if baseArray[z,x+1,y-1] > 0:
+      labelArray[z,x+1,y-1] = 1
+      segmentedInside[x+1,y-1] = 1
+      pixels.append([z,x+1,y-1])
+    if baseArray[z,x-1,y+1] > 0:
+      labelArray[z,x-1,y+1] = 1
+      segmentedInside[x-1,y+1] = 1
+      pixels.append([z,x-1,y+1])
+
+  return segmentedInside
+'''
+     
+def connected2D(z,x,y, labelArray, connectedArray):
+
+  print('called connected2d:', z, x, y)
+    
+  maskZ = z
+  centroidX = x
+  centroidY = y
+
+  # start by getting the segmentation where the mask was drawn
+  maskLevel = regionGrow2D(maskZ,centroidX,centroidY, 2, 1, connectedArray)
+  
+  print('called connected2d:', maskZ, centroidX, centroidY )
+
+  for z in range(maskZ+1, labelArray.shape[0]):
+    print('mask:', z)
+    for x in range(0,labelArray.shape[1]):
+      for y in range(0,labelArray.shape[2]):
+        # first step out
+        if z == maskZ+1:
+          if maskLevel[x,y] == 1:
+            # check if label array is also a part
+            if connectedArray[z,x,y] == 1:
+              labelArray[z,x,y] = 1
+              #copyGrow2D(z,x,y,labelArray, connectedArray)
+        # not the first step out
+        else: 
+          if labelArray[z-1,x,y] == 1:
+            # check if label array is also a part
+            if connectedArray[z,x,y] == 1:
+              labelArray[z,x,y] = 1  
+            
+  for z in range(maskZ-1, -1, -1):
+    print('mask:', z)
+    for x in range(0,labelArray.shape[1]):
+      for y in range(0,labelArray.shape[2]):
+        # first step out
+        if z == maskZ-1:
+          if maskLevel[x,y] == 1:
+            # check if label array is also a part
+            if connectedArray[z,x,y] == 1:
+              labelArray[z,x,y] = 1
+        # not the first step out
+        else: 
+          if labelArray[z+1,x,y] == 1:
+            # check if label array is also a part
+            if connectedArray[z,x,y] == 1:
+              labelArray[z,x,y] = 1  
+
+  print('end connected2D')
+  return labelArray
+
+    
+def runFindEdge(masterNode,labelNode):
+
+  # get the image
+  masterArray = slicer.util.array(masterNode.GetID())
+  labelArray = slicer.util.array(labelNode.GetID())
+  
+  # loop through the slice (z)
+  for z in range(0,labelArray.shape[0]):
+    label = 20
+    print('in layer', z)
+    # look for connected areas in 2D plane
+    for x in range(0,labelArray.shape[1]):
+      for y in range(0,labelArray.shape[2]):
+        if labelArray[z,x,y] < 20:
+          self.regionGrow2D(z,x,y, label, labelArray)
+          print('called region grow', label)
+          label = label+1
+
+        '''
+        # loop over the 1 colour region to find edges
+        # in y direction (downsampling by only taking every 5th)
+        for x in range(0,labelArray.shape[1],5):
+          keepMax = 0
+          keepMin = labelArray.shape[2]-1
+            for y in range(0,labelArray.shape[2],5):
+            if labelArray[z,x,y] == label-1:
+              # trying to find the largest and smallest y in each "line"
+                if y > keepMax:
+                  keepMax = y
+                if y < keepMin:
+                  keepMin = y
+                # annotate the max / min
+                if keepMax != 0:
+                  labelArray[z,x,keepMax] = 17
+                  print('Point y: ', keepMax)
+                if keepMin != labelArray.shape[2]-1:
+                  labelArray[z,x,keepMin] = 17
+                  print('Point y: ', keepMin)
+            # in x direction (downsampling by only taking every 5th)
+            for y in range(0,labelArray.shape[2],5):
+              keepMax = 0
+              keepMin = labelArray.shape[1]-1
+              for x in range(0,labelArray.shape[1],5):
+                if labelArray[z,x,y] == label-1:
+                  # trying to find the largest and smallest x in each "line"
+                  if x > keepMax:
+                    keepMax = x
+                  if x < keepMin:
+                    keepMin = x
+                # annotate the max / min
+                if keepMax != 0:
+                  labelArray[z,keepMax,y] = 17
+                  print('Point x: ', keepMax)
+                if keepMin != labelArray.shape[1]-1:
+                  labelArray[z,keepMin,y] = 17
+                  print('Point x: ', keepMin)
+        '''
+
+
+                      
+
 def segment(array, searchLabel):
 
   maxJ = 0
@@ -135,66 +405,3 @@ def segment(array, searchLabel):
   return isinside
 
          
-
-                        
-"""
-  isinside = numpy.zeros(array.shape,'float')
-  for j in range(minJ-1,maxJ+1):
-    for k in range(minK-1,maxK+1):
-      # for each pixel that is not a part of the annotation check...
-      if array[j,k] == 0:
-        # go +/- in j from the pixel
-        countJPlus = 0
-        countJMinus = 0
-        insideJLine = False
-        for j2 in range(j+1,array.shape[0]):
-          if array[j2,k] > 0:
-            # inside line
-            if insideJLine == False:
-              countJPlus += 1
-            insideJLine = True
-          else:
-            # == 0, outside line
-            insideJLine = False
-        for j2 in range(0,j):
-          if array[j2,k] > 0:
-            # inside line
-            if insideJLine == False:
-              countJMinus += 1
-            insideJLine = True
-          else:
-            # == 0, outside line
-            insideJLine = False
-        # go +/- in k from the pixel
-        countKPlus = 0
-        countKMinus = 0
-        insideKLine = False
-        for k2 in range(k+1,array.shape[1]):
-          if array[j,k2] > 0:
-            # inside line
-            if insideKLine == False:
-              countKPlus += 1
-            insideKLine = True
-          else:
-            # == 0, outside line
-            insideKLine = False
-        for k2 in range(0,k):
-          if array[j,k2] > 0:
-            # inside line
-            if insideKLine == False:
-              countKMinus += 1
-            insideKLine = True
-          else:
-            # == 0, outside line
-            insideKLine = False
-        # if there are an odd # of lines crossed on either side
-        areaInsideMask = []
-        if (countJPlus % 2 == 1 and countJMinus % 2 == 1 and countKPlus % 2 == 1 and countKMinus > 0) or (countJMinus % 2 == 1 and countKPlus % 2 == 1 and countKMinus % 2 == 1 and countJPlus > 0) or (countKPlus % 2 == 1 and countKMinus % 2 == 1 and countJPlus % 2 == 1 and countJMinus > 0) or (countKMinus % 2 == 1 and countJPlus % 2 == 1 and countJMinus % 2 == 1 and countKPlus > 0):
-          # area is inside the circle / mask
-          isinside[j,k] = 1
-          #print("coord ",j,k)
-
-      # else
-          # do nothing since pixel is inside the annotation (>0) 
-  return isinside
-"""

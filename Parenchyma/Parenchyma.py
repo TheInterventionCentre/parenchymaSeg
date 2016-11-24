@@ -50,6 +50,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.masterNode = None
     self.labelNode = None
+    
     self.paint = None
     self.paintMode = False
     self.correct = None
@@ -113,19 +114,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.gradientButton)
 
     #
-    # Image pre-processing
-    #
-    self.processGradientButton = qt.QPushButton("Image pre-processing ITK")
-    self.processGradientButton.toolTip = "Process image to enhance differences between areas"
-    self.processGradientButton.enabled = True
-    parametersLayout.addRow(self.processGradientButton)
-
-    #self.processFilterButton = qt.QPushButton("Image pre-processing edge")
-    #self.processFilterButton.toolTip = "Process image to ..."
-    #self.processFilterButton.enabled = True
-    #parametersLayout.addRow(self.processFilterButton)
-
-    #
     # Paint Button
     #
     self.paintButton = qt.QPushButton("Paint")
@@ -159,7 +147,14 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.growButton.enabled = True
     parametersLayout.addRow(self.growButton)
 
-    '''
+    #
+    # Liver 2D Button
+    #
+    self.liver2DButton = qt.QPushButton("Liver 2D")
+    self.liver2DButton.toolTip = "Grow from mask in 2D, but up down into next slices."
+    self.liver2DButton.enabled = True
+    parametersLayout.addRow(self.liver2DButton)
+
     #
     # Cross remove Button
     #
@@ -175,7 +170,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.connectivityButton.toolTip = "re-implementation of sergio's connectivity reduction."
     self.connectivityButton.enabled = True
     parametersLayout.addRow(self.connectivityButton)
-    '''
     
     #
     # Paint Button (correction)
@@ -210,33 +204,23 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.removeIsolatedButton.enabled = True
     parametersLayout.addRow(self.removeIsolatedButton)
 
-    '''
-    #
-    # Find outer edge
-    #
-    self.edgeButton = qt.QPushButton("Find outer edge")
-    self.edgeButton.toolTip = "Try to find outer boundary of holey segmentation."
-    self.edgeButton.enabled = True
-    parametersLayout.addRow(self.edgeButton)
-    '''
     
     # connections
+    #buttons
     self.selectButton.connect('clicked(bool)', self.onSelectButton)
+    self.gradientButton.connect('clicked(bool)', self.onGradientButton)   
     self.paintButton.connect('clicked(bool)', self.onPaintButton)
-    self.processGradientButton.connect('clicked(bool)', self.onProcessGradientButton)
-    #self.processFilterButton.connect('clicked(bool)', self.onProcessFilterButton)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
-    
-    self.gradientButton.connect('clicked(bool)', self.onGradientButton)
-    #self.crossButton.connect('clicked(bool)', self.onCrossButton)
-    #self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
-    
+    self.liver2DButton.connect('clicked(bool)', self.onliver2DButton)
+    self.crossButton.connect('clicked(bool)', self.onCrossButton)
+    self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
+    # correction tools buttons
     self.correctButton.connect('clicked(bool)', self.onCorrectButton)
     self.trackMaskButton.connect('clicked(bool)', self.onTrackMaskButton)
     self.eraseMaskButton.connect('clicked(bool)', self.onEraseMaskButton)
     self.removeIsolatedButton.connect('clicked(bool)', self.onRemoveIsolatedButton)
-    #self.edgeButton.connect('clicked(bool)', self.onEdgeButton)
+
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     self.threshold.connect('valuesChanged(double,double)', self.onThresholdValuesChanged)
@@ -254,6 +238,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView)
 
 
+  '''-----------------------------------------------------------------------------'''
+    
   def cleanup(self):
     pass
 
@@ -270,21 +256,11 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onLabelButton(self):
     self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
-    #print(self.labelNode)
-
-  def onProcessGradientButton(self):
-    self.logic.processGradient(self.masterNode)
-    #print(self.labelNode)
 
   def onProcessFilterButton(self):
     self.logic.processFilter(self.masterNode)
-    #print(self.labelNode)
 
   def onPaintButton(self):
-    #interactor = slicer.qMRMLSliceView().interactorStyle().GetInteractor()
-    #sw = slicer.qMRMLSliceWidget()
-    #swi = sw.interactorStyle()
-    #interactor = swi.GetInteractor()
     if self.paintMode:
       self.paintMode = False
       print("deleting paint")
@@ -328,6 +304,11 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onGradientButton(self):
     self.logic.runGradient(self.masterNode)
 
+  def onliver2DButton(self):    
+    print("Liver button")
+    #runFindLiver2D(self,masterNode,labelNode): 
+    self.logic.runFindLiver2D(self.masterNode, self.labelNode)
+
   def onCrossButton(self):
     self.logic.runCrossRemove(self.masterNode, self.labelNode, 2) # need to pass in size of cross 
 
@@ -335,7 +316,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.logic.runConnectivity(self.masterNode, self.labelNode, 10) # need to pass in number of pixels around it that need to be 1
 
   def onCorrectButton(self):
-
     if self.correctMode:
       self.correctMode = False
       print("deleting correct")
@@ -396,6 +376,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.threshold.setMinimumValue( min )
     self.threshold.setMaximumValue( max )
 
+'''-----------------------------------------------------------------------------'''
+
 #
 # ParenchymaLogic
 #
@@ -454,42 +436,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     slicer.app.applicationLogic().PropagateVolumeSelection(0)
 
     return merge
-      
-
-  def processGradient(self,masterNode):
-
-    # now need to use gradient image filter to process image?
-    masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
-
-    global mean
-    global std
-
-    '''
-    sigmoidIF = SimpleITK.SigmoidImageFilter()
-    sigmoidIF.SetBeta(mean-std)
-    sigmoidIF.SetAlpha(std)
-    sigmoidIF.SetOutputMaximum(mean+(std*3))
-    sigmoidIF.SetOutputMinimum(mean-(std*3))
-    sigmoidImage = sigmoidIF.Execute(masterImage)
-    '''
     
-    morphGradientIF = SimpleITK.MorphologicalGradientImageFilter()
-    morphGradientIF.SetKernelRadius(3)
-    morphGradientImage = morphGradientIF.Execute(masterImage)
-
-    sitkUtils.PushToSlicer(morphGradientImage, 'morphGradientImage')
-    
-
-  def processFilter(self,masterNode):
-
-    # now need to use edge image filter to process image?
-    masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
-
-    testIF = SimpleITK.CannyEdgeDetectionImageFilter()
-    testImage = testIF.Execute(SimpleITK.Cast(masterImage, SimpleITK.sitkFloat32), 0.0, 200.0, (5.0,5.0,5.0), (0.5,0.5,0.5) )
-    
-    sitkUtils.PushToSlicer(testImage, 'filterImage')
-
   def runMask(self,masterNode,labelNode):
     """
     Run things in 2D, stuff with the mask
@@ -573,12 +520,17 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('starting: connected threshold filter')
     thresholdImage = connectedThresholdIF.Execute(masterImage)
 
+    # take this out for now, as time costly and may be best to close holes in 2D
+    '''
     print('starting: fill holes filter')
     fillHoleIF = SimpleITK.GrayscaleFillholeImageFilter()
     connectedImage = fillHoleIF.Execute(thresholdImage)
+    '''
+    
+    sitkUtils.PushToSlicer(thresholdImage, 'connectedImage')
+    #print('save self.connected image')
 
-    sitkUtils.PushToSlicer(connectedImage, 'connectedImage')
-
+    '''
     print('copying the connected image to the label')
     connectedArray = SimpleITK.GetArrayFromImage(connectedImage)
     for i in range(0, labelArray.shape[0]):
@@ -588,8 +540,30 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
             labelArray[i,j,k] = 1
           else:
             labelArray[i,j,k] = 0
+    '''
 
-            
+  def runFindLiver2D(self,masterNode,labelNode):
+
+    labelArray = slicer.util.array(labelNode.GetID())
+    connectedArray = slicer.util.array(masterNode.GetID())
+
+    global maskZ
+    global centroidX
+    global centroidY
+
+    print('find liver 2D:', maskZ, centroidX, centroidY)
+    # grow in 2d to everything connected to that point that is segmented
+    
+    #regionGrow2D(self, z,x,y, newLabel, eraseLabel, labelArray):
+    tempArray = ParLib.Algorithms.connected2D(maskZ, centroidY, centroidX, labelArray, connectedArray)
+    tempImage = SimpleITK.GetImageFromArray(tempArray)
+    sitkUtils.PushToSlicer(tempImage, 'liver')
+    
+    #tempImage = SimpleITK.GetImageFromArray(labelArray)
+    #sitkUtils.PushToSlicer(tempImage, 'liverLabel')
+    # put this in the label map liverNode
+    
+        
   # gradient filter
   def runGradient(self, masterNode):
 
@@ -671,7 +645,10 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
               labelArray[i,j,k] = 17
 
               
-  #
+                
+
+  
+  # 
   # STUFF FOR CORRECTION TOOL (below here)
   #
   def runTrackMask(self, masterNode, labelNode):
@@ -743,14 +720,14 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       eraseLabel = labelArray[maskZ,centY,centX]
       # z,x,y, newLabel, eraseLabel, labelArray
       # erase the mask
-      iArray = self.regionGrow2D(maskZ, centY, centX, 0, eraseLabel, labelArray)
+      iArray = ParLib.Algorithms.regionGrow2D(maskZ, centY, centX, 0, eraseLabel, labelArray)
     
     for i in range(maskZ+1,labelArray.shape[0]): # move superior
       isConnected = False
       if labelArray[i,superiorCentX,superiorCentY] > 0: # check if still in segmented area
         eraseLabel = labelArray[i,superiorCentX,superiorCentY]
         isConnected = True
-        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, newLabel, eraseLabel, labelArray)
+        iArray = ParLib.Algorithms.regionGrow2D(i, superiorCentX, superiorCentY, newLabel, eraseLabel, labelArray)
       if isConnected == False:
         break # break out of enclosing for loop
       # update centroid
@@ -765,11 +742,11 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       print('moved (superior):', distance)
       if distance > 20:
         # go back one level before the break and switch eraselable and newlabel
-        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, eraseLabel, newLabel, labelArray)
+        iArray = ParLib.Algorithms.regionGrow2D(i, superiorCentX, superiorCentY, eraseLabel, newLabel, labelArray)
         break
       else:
         # ok to erase previous level
-        iArray = self.regionGrow2D(i, superiorCentX, superiorCentY, 0, newLabel, labelArray)
+        iArray = ParLib.Algorithms.regionGrow2D(i, superiorCentX, superiorCentY, 0, newLabel, labelArray)
       superiorCentY = int(centroid[0])
       superiorcentX = int(centroid[1])
 
@@ -778,7 +755,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       if labelArray[i,inferiorCentX,inferiorCentY] > 0: # check if still in segmented area
         eraseLabel = labelArray[i,inferiorCentX,inferiorCentY]
         isConnected = True
-        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, newLabel, eraseLabel, labelArray)
+        iArray = ParLib.Algorithms.regionGrow2D(i, inferiorCentX, inferiorCentY, newLabel, eraseLabel, labelArray)
       if isConnected == False:
         break # break out of enclosing for loop
       # update centroid
@@ -793,11 +770,11 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       print('moved (inferior):', distance )
       if distance > 20:
         # go back one level before the break and switch eraselable and newlabel
-        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, eraseLabel, newLabel, labelArray)
+        iArray = ParLib.Algorithms.regionGrow2D(i, inferiorCentX, inferiorCentY, eraseLabel, newLabel, labelArray)
         break
       else:
         # ok to erase previous level
-        iArray = self.regionGrow2D(i, inferiorCentX, inferiorCentY, 0, newLabel, labelArray)
+        iArray = ParLib.Algorithms.regionGrow2D(i, inferiorCentX, inferiorCentY, 0, newLabel, labelArray)
       inferiorCentY = int(centroid[0])
       inferiorCentX = int(centroid[1])
         
@@ -889,7 +866,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     if(newLabel == 5):
       newLabel = 6 # skip the red for corrections
     print('called region grow 3d:', maskZ)
-    labelArray = self.regionGrow3D(maskZ, centroidY, centroidX, newLabel, eraseLabel, labelArray)
+    labelArray = ParLib.Algorithms.regionGrow3D(maskZ, centroidY, centroidX, newLabel, eraseLabel, labelArray)
 
     # delete everything in the label other than newLabel
     print('removing unconnected')
@@ -903,174 +880,11 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('finished remove isolated area')
     
     
-  def regionGrow3D(self, z,x,y, newLabel, eraseLabel, labelArray):
-
-    labelArray[z,x,y] = newLabel
-    pixels = [] # keep list of pixels included in area
-    pixels.append([z,x,y])
-
-    while len(pixels) > 0:
-      #print('pixels length', len(pixels))
-      # get the latest pixel
-      z,x,y = pixels.pop()
-      if z < labelArray.shape[0]-1 and z > 1 and x < labelArray.shape[1]-1 and x > 1 and y < labelArray.shape[2]-1 and x > 1:
-        # grow out to everything connected to this
-        if labelArray[z,x+1,y] == eraseLabel:
-          labelArray[z,x+1,y] = newLabel
-          pixels.append([z,x+1,y])
-        if labelArray[z,x-1,y] == eraseLabel:
-          labelArray[z,x-1,y] = newLabel
-          pixels.append([z,x-1,y])
-        if labelArray[z,x,y+1] == eraseLabel:
-          labelArray[z,x,y+1] = newLabel
-          pixels.append([z,x,y+1])
-        if labelArray[z,x,y-1] == eraseLabel:
-          labelArray[z,x,y-1] = newLabel
-          pixels.append([z,x,y-1])
-        if labelArray[z,x+1,y+1] == eraseLabel:
-          labelArray[z,x+1,y+1] = newLabel
-          pixels.append([z,x+1,y+1])
-        if labelArray[z,x-1,y-1] == eraseLabel:
-          labelArray[z,x-1,y-1] = newLabel
-          pixels.append([z,x-1,y-1])
-        if labelArray[z,x+1,y-1] == eraseLabel:
-          labelArray[z,x+1,y-1] = newLabel
-          pixels.append([z,x+1,y-1])
-        if labelArray[z,x-1,y+1] == eraseLabel:
-          labelArray[z,x-1,y+1] = newLabel
-          pixels.append([z,x-1,y+1])
-        # z direction (up / down)
-        if labelArray[z+1,x,y] == eraseLabel:
-          labelArray[z+1,x,y] = newLabel
-          pixels.append([z+1,x,y])
-        if labelArray[z-1,x,y] == eraseLabel:
-          labelArray[z-1,x,y] = newLabel
-          pixels.append([z-1,x,y])
-
-    return labelArray
-  
-
-  def regionGrow2D(self, z,x,y, newLabel, eraseLabel, labelArray):
-
-    labelArray[z,x,y] = newLabel
-    pixels = [] # keep list of pixels included in area
-    pixels.append([z,x,y])
-
-    print('called regionGrow2d:', z, x, y)
-    
-    # keep array of the area grown into (2D)
-    array = labelArray[z,:,:]  
-    segmentedInside = numpy.zeros(array.shape,'float')
-    segmentedInside[x,y] = newLabel
-    
-    while len(pixels) > 0:
-      #print('pixels length', len(pixels))
-      # get the latest pixel
-      z,x,y = pixels.pop()
-      # grow out to everything connected to this
-      if labelArray[z,x+1,y] == eraseLabel:
-        labelArray[z,x+1,y] = newLabel
-        segmentedInside[x+1,y] = 1
-        pixels.append([z,x+1,y])
-      if labelArray[z,x-1,y] == eraseLabel:
-        labelArray[z,x-1,y] = newLabel
-        segmentedInside[x-1,y] = 1
-        pixels.append([z,x-1,y])
-      if labelArray[z,x,y+1] == eraseLabel:
-        labelArray[z,x,y+1] = newLabel
-        segmentedInside[x,y+1] = 1
-        pixels.append([z,x,y+1])
-      if labelArray[z,x,y-1] == eraseLabel:
-        labelArray[z,x,y-1] = newLabel
-        segmentedInside[x,y-1] = 1
-        pixels.append([z,x,y-1])
-      if labelArray[z,x+1,y+1] == eraseLabel:
-        labelArray[z,x+1,y+1] = newLabel
-        segmentedInside[x+1,y+1] = 1
-        pixels.append([z,x+1,y+1])
-      if labelArray[z,x-1,y-1] == eraseLabel:
-        labelArray[z,x-1,y-1] = newLabel
-        segmentedInside[x-1,y-1] = 1
-        pixels.append([z,x-1,y-1])
-      if labelArray[z,x+1,y-1] == eraseLabel:
-        labelArray[z,x+1,y-1] = newLabel
-        segmentedInside[x+1,y-1] = 1
-        pixels.append([z,x+1,y-1])
-      if labelArray[z,x-1,y+1] == eraseLabel:
-        labelArray[z,x-1,y+1] = newLabel
-        segmentedInside[x-1,y+1] = 1
-        pixels.append([z,x-1,y+1])
-
-    return segmentedInside
-
-     
-
-  def runFindEdge(self,masterNode,labelNode):
-
-    # get the image
-    masterArray = slicer.util.array(masterNode.GetID())
-    labelArray = slicer.util.array(labelNode.GetID())
-
-    # loop through the slice (z)
-    for z in range(0,labelArray.shape[0]):
-      label = 20
-      print('in layer', z)
-      # look for connected areas in 2D plane
-      for x in range(0,labelArray.shape[1]):
-        for y in range(0,labelArray.shape[2]):
-          if labelArray[z,x,y] < 20:
-            self.regionGrow2D(z,x,y, label, labelArray)
-            print('called region grow', label)
-            label = label+1
-            
-
-            '''
-            # loop over the 1 colour region to find edges
-            # in y direction (downsampling by only taking every 5th)
-            for x in range(0,labelArray.shape[1],5):
-              keepMax = 0
-              keepMin = labelArray.shape[2]-1
-              for y in range(0,labelArray.shape[2],5):
-                if labelArray[z,x,y] == label-1:
-                  # trying to find the largest and smallest y in each "line"
-                  if y > keepMax:
-                    keepMax = y
-                  if y < keepMin:
-                    keepMin = y
-                # annotate the max / min
-                if keepMax != 0:
-                  labelArray[z,x,keepMax] = 17
-                  print('Point y: ', keepMax)
-                if keepMin != labelArray.shape[2]-1:
-                  labelArray[z,x,keepMin] = 17
-                  print('Point y: ', keepMin)
-            # in x direction (downsampling by only taking every 5th)
-            for y in range(0,labelArray.shape[2],5):
-              keepMax = 0
-              keepMin = labelArray.shape[1]-1
-              for x in range(0,labelArray.shape[1],5):
-                if labelArray[z,x,y] == label-1:
-                  # trying to find the largest and smallest x in each "line"
-                  if x > keepMax:
-                    keepMax = x
-                  if x < keepMin:
-                    keepMin = x
-                # annotate the max / min
-                if keepMax != 0:
-                  labelArray[z,keepMax,y] = 17
-                  print('Point x: ', keepMax)
-                if keepMin != labelArray.shape[1]-1:
-                  labelArray[z,keepMin,y] = 17
-                  print('Point x: ', keepMin)
-            '''
-                      
 
 
 
 
-
-  
-    
+'''-----------------------------------------------------------------------------'''  
 
 class ParenchymaTest(ScriptedLoadableModuleTest):
   """
@@ -1125,69 +939,3 @@ class ParenchymaTest(ScriptedLoadableModuleTest):
     logic = ParenchymaLogic()
     self.assertTrue( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')
-
-
-#class ParEditorWidget(Editor.EditorWidget):
-  """
-  def createEditBox(self):
-    
-    self.editLabelMapsFrame.collapsed = False
-    self.editBoxFrame = qt.QFrame(self.effectsToolsFrame)
-    self.editBoxFrame.objectName = 'EditBoxFrame'
-    self.editBoxFrame.setLayout(qt.QVBoxLayout())
-    self.effectsToolsFrame.layout().addWidget(self.editBoxFrame)
-    self.toolsBox = ParEditBox(self.editBoxFrame, optionsFrame=self.effectOptionsFrame)
-    """
-    
-#class ParEditBox(EditorLib.EditBox):
-  """
-  # create the edit box
-  def create(self):
-
-    
-    self.findEffects()
-
-    self.mainFrame = qt.QFrame(self.parent)
-    self.mainFrame.objectName = 'MainFrame'
-    vbox = qt.QVBoxLayout()
-    self.mainFrame.setLayout(vbox)
-    self.parent.layout().addWidget(self.mainFrame)
-
-    #
-    # the buttons
-    #
-    self.rowFrames = []
-    self.actions = {}
-    self.buttons = {}
-    self.icons = {}
-    self.callbacks = {}
-
-    # create all of the buttons
-    # createButtonRow() ensures that only effects in self.effects are exposed,
-    self.createButtonRow( ("PreviousCheckPoint", "NextCheckPoint",
-                               "DefaultTool", "PaintEffect", "EraseLabel","ChangeIslandEffect"),
-                              rowLabel="Undo/Redo/Default: " )
-
-    extensions = []
-    for k in slicer.modules.editorExtensions:
-        extensions.append(k)
-    self.createButtonRow( extensions )
-
-    #
-    # the labels
-    #
-    self.toolsActiveToolFrame = qt.QFrame(self.parent)
-    self.toolsActiveToolFrame.setLayout(qt.QHBoxLayout())
-    self.parent.layout().addWidget(self.toolsActiveToolFrame)
-    self.toolsActiveTool = qt.QLabel(self.toolsActiveToolFrame)
-    self.toolsActiveTool.setText( 'Active Tool:' )
-    self.toolsActiveTool.setStyleSheet("background-color: rgb(232,230,235)")
-    self.toolsActiveToolFrame.layout().addWidget(self.toolsActiveTool)
-    self.toolsActiveToolName = qt.QLabel(self.toolsActiveToolFrame)
-    self.toolsActiveToolName.setText( '' )
-    self.toolsActiveToolName.setStyleSheet("background-color: rgb(232,230,235)")
-    self.toolsActiveToolFrame.layout().addWidget(self.toolsActiveToolName)
-
-    self.updateUndoRedoButtons()
-    self._onParameterNodeModified(self.editUtil.getParameterNode())
-    """
