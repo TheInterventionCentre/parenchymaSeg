@@ -528,8 +528,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     '''
     
     sitkUtils.PushToSlicer(thresholdImage, 'connectedImage')
-    #print('save self.connected image')
-
+    sitkUtils.PushLabel(thresholdImage, 'connectedImage')
+    
     '''
     print('copying the connected image to the label')
     connectedArray = SimpleITK.GetArrayFromImage(connectedImage)
