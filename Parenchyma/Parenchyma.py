@@ -5,12 +5,9 @@ import numpy
 import pickle
 import SimpleITK
 import sitkUtils
-#import Editor
 import EditorLib
-#from EditorLib.EditOptions import EditOptions
 from EditorLib.EditUtil import EditUtil
 import ParLib.Algorithms
-#import ParLib.Paint
 from slicer.ScriptedLoadableModule import *
 
 #
@@ -48,8 +45,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
-    self.masterNode = None
-    self.labelNode = None
+    self.masterNode = None # master image
+    self.labelNode = None  # label image
     
     self.paint = None
     self.paintMode = False
@@ -57,8 +54,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.correctMode = False
     self.logic = ParenchymaLogic()
     self.editUtil = EditUtil()
-    #self.editUtil = EditorLib.EditUtil.EditUtil()
-    #self.localParEditorWidget = None
        
   def setup(self):
     
@@ -106,14 +101,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     parametersLayout.addRow(self.selectButton)
 
     #
-    # Gradient Button
-    #
-    self.gradientButton = qt.QPushButton("Gradient - sergio reimplementation")
-    self.gradientButton.toolTip = "re-implementation of sergio's gradient."
-    self.gradientButton.enabled = True
-    parametersLayout.addRow(self.gradientButton)
-
-    #
     # Paint Button
     #
     self.paintButton = qt.QPushButton("Paint")
@@ -129,6 +116,14 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.applyButton.toolTip = "Find area of mask."
     self.applyButton.enabled = True
     parametersLayout.addRow(self.applyButton)
+    
+    #
+    # Gradient Button
+    #
+    self.gradientButton = qt.QPushButton("Gradient - sergio reimplementation")
+    self.gradientButton.toolTip = "re-implementation of sergio's gradient."
+    self.gradientButton.enabled = True
+    parametersLayout.addRow(self.gradientButton)
 
     #
     # Range for threshold
@@ -155,6 +150,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.liver2DButton.enabled = True
     parametersLayout.addRow(self.liver2DButton)
 
+    """
     #
     # Cross remove Button
     #
@@ -170,6 +166,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.connectivityButton.toolTip = "re-implementation of sergio's connectivity reduction."
     self.connectivityButton.enabled = True
     parametersLayout.addRow(self.connectivityButton)
+    """
     
     #
     # Paint Button (correction)
@@ -213,8 +210,8 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.growButton.connect('clicked(bool)', self.onGrowButton)
     self.liver2DButton.connect('clicked(bool)', self.onliver2DButton)
-    self.crossButton.connect('clicked(bool)', self.onCrossButton)
-    self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
+    #self.crossButton.connect('clicked(bool)', self.onCrossButton)
+    #self.connectivityButton.connect('clicked(bool)', self.onConnectivityButton)
     # correction tools buttons
     self.correctButton.connect('clicked(bool)', self.onCorrectButton)
     self.trackMaskButton.connect('clicked(bool)', self.onTrackMaskButton)
@@ -224,11 +221,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     self.threshold.connect('valuesChanged(double,double)', self.onThresholdValuesChanged)
-
-    # Creates and adds the custom Editor Widget to the module
-    #self.localParEditorWidget = ParEditorWidget(parent=self.parent, showVolumesFrame=False)
-    #self.localParEditorWidget.setup()
-    #self.localParEditorWidget.enter()
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -305,8 +297,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.logic.runGradient(self.masterNode)
 
   def onliver2DButton(self):    
-    print("Liver button")
-    #runFindLiver2D(self,masterNode,labelNode): 
     self.logic.runFindLiver2D(self.masterNode, self.labelNode)
 
   def onCrossButton(self):
@@ -588,12 +578,12 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     print('Done smoothing')
     '''
     
-    smoothArray = SimpleITK.GetArrayFromImage(tempImage)
+    tempArray = SimpleITK.GetArrayFromImage(tempImage)
     gradientArray = SimpleITK.GetArrayFromImage(tempImage) # duplicate to modify this one
 
-    for j in range(1, smoothArray.shape[1]-2): # X
-      for k in range(1, smoothArray.shape[2]-2): # Y
-        gradientArray[:,j,k] = numpy.sum(numpy.sum(numpy.abs(smoothArray[:, j-2:j+2, k-2:k+2] - mean), axis=2), axis=1) / 9
+    for j in range(1, tempArray.shape[1]-2): # X
+      for k in range(1, tempArray.shape[2]-2): # Y
+        gradientArray[:,j,k] = numpy.sum(numpy.sum(numpy.abs(tempArray[:, j-2:j+2, k-2:k+2] - mean), axis=2), axis=1) / 9
 
     gradientImage = SimpleITK.GetImageFromArray(gradientArray)
     sitkUtils.PushToSlicer(gradientImage, 'gradientImage')
