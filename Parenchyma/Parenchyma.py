@@ -561,6 +561,9 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     global std
 
     tempImage = sitkUtils.PullFromSlicer(masterNode.GetID())
+    print('origin of original image:', tempImage.GetOrigin())
+    print('spacing of original image:', tempImage.GetSpacing())
+    
     '''
     castIF = SimpleITK.CastImageFilter()
     castIF.SetOutputPixelType(SimpleITK.sitkFloat32)
@@ -568,7 +571,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     
     smoothIF = SimpleITK.GradientAnisotropicDiffusionImageFilter()
     spacing = masterImage.GetSpacing()
-    min_spacing = numpy.min(numpy.array(spacing))
+    min_spacing = numpy.min(numpy.arrayf(spacing))
     smoothIF.SetTimeStep(min_spacing/(math.pow(2, 4)))
     smoothIF.SetNumberOfIterations(10)
     smoothIF.SetConductanceParameter(10)
@@ -586,8 +589,10 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
         gradientArray[:,j,k] = numpy.sum(numpy.sum(numpy.abs(tempArray[:, j-2:j+2, k-2:k+2] - mean), axis=2), axis=1) / 9
 
     gradientImage = SimpleITK.GetImageFromArray(gradientArray)
+    gradientImage.SetOrigin(tempImage.GetOrigin())
+    gradientImage.SetSpacing(tempImage.GetSpacing())
     sitkUtils.PushToSlicer(gradientImage, 'gradientImage')
-    print('Done sergio gradient')
+    print('Done sergio gradient')   
     
 
   # re-implementation of sergio's
