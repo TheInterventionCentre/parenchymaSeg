@@ -31,7 +31,7 @@ class Parenchyma(ScriptedLoadableModule):
     self.parent.acknowledgementText = """
     This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
     and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-""" # replace with organization, grant and thanks.
+    """ # replace with organization, grant and thanks.
 
 
 #
@@ -52,8 +52,10 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     self.paintMode = False
     self.correct = None
     self.correctMode = False
+    
     self.logic = ParenchymaLogic()
     self.editUtil = EditUtil()
+    
        
   def setup(self):
     
@@ -129,7 +131,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     # Range for threshold
     #
     self.threshold = ctk.ctkRangeWidget()
-    lo, hi = self.getLoHiImageValues()
+    lo, hi = self.getLoHiImageValues() # get the highest and lowest values of the background image
     self.threshold.minimum, self.threshold.maximum = lo, hi
     self.threshold.singleStep = (hi - lo) / 1000.
     parametersLayout.addRow(self.threshold)
@@ -244,22 +246,18 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     lo, hi = self.getLoHiImageValues()
     self.threshold.minimum, self.threshold.maximum = lo, hi
     self.threshold.singleStep = (hi - lo) / 1000.
-    #print(self.inputSelector.currentNode())
-
-  def onLabelButton(self):
-    self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
 
   def onProcessFilterButton(self):
     self.logic.processFilter(self.masterNode)
 
   def onPaintButton(self):
-    if self.paintMode:
+    if self.paintMode: # paint is on
       self.paintMode = False
       print("deleting paint")
       self.painter.cleanup()
       self.painter = None
       #self.paint.removeObs()
-    else:
+    else: # paint is off
       self.paintMode = True
 
       # just in case?
@@ -288,31 +286,45 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
     hi = mean + 4*std
     lo = mean - 4*std
     self.threshold.minimum, self.threshold.maximum = lo, hi
+    self.threshold.singleStep = (hi - lo) / 1000.
     self.setThresholdValues(min, max)
-
-  def onGrowButton(self):
-    self.logic.runThreshold(self.masterNode, self.labelNode)
-
+    
   def onGradientButton(self):
     self.logic.runGradient(self.masterNode)
+    # change the node that is selected on the image selector?
+    self.masterNode = slicer.util.getNode('gradientImage')
+    self.inputSelector.setCurrentNode(self.masterNode)
+    self.onApplyButton()
 
-  def onliver2DButton(self):    
-    self.logic.runFindLiver2D(self.masterNode, self.labelNode)
+  # create the thresholded image
+  def onGrowButton(self):
+    min = self.threshold.minimumValue
+    max = self.threshold.maximumValue
+    self.logic.runThreshold(self.masterNode, self.labelNode, min, max)
 
+  def onliver2DButton(self): 
+    # make new empty label
+    self.labelNode = self.logic.createLabelMap(self.inputSelector.currentNode())
+    self.logic.runFindLiver2D(self.labelNode)
+
+  '''
   def onCrossButton(self):
-    self.logic.runCrossRemove(self.masterNode, self.labelNode, 2) # need to pass in size of cross 
+    # need to pass in size of cross 
+    self.logic.runCrossRemove(self.masterNode, self.labelNode, 2) 
 
   def onConnectivityButton(self):
-    self.logic.runConnectivity(self.masterNode, self.labelNode, 10) # need to pass in number of pixels around it that need to be 1
-
+    # need to pass in number of pixels around it that need to be 1
+    self.logic.runConnectivity(self.masterNode, self.labelNode, 10) 
+  '''
+    
   def onCorrectButton(self):
-    if self.correctMode:
+    if self.correctMode: # correct is on
       self.correctMode = False
       print("deleting correct")
       self.painter.cleanup()
       self.painter = None
       #self.paint.removeObs()
-    else:
+    else: # correct is off
       self.correctMode = True
 
       # just in case?
@@ -345,8 +357,10 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
   def onEdgeButton(self):
     self.logic.runFindEdge(self.masterNode, self.labelNode)
 
+  ## function to get the max / min values of the image to have the right scale for the range slider
   def getLoHiImageValues(self):
     backgroundImage = self.masterNode
+    # default values, but set if the background image exists
     lo = 0
     hi = 100
     if backgroundImage:
@@ -368,7 +382,7 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
 '''-----------------------------------------------------------------------------'''
 
-#
+## 
 # ParenchymaLogic
 #
 class ParenchymaLogic(ScriptedLoadableModuleLogic):
@@ -380,20 +394,18 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
-  #def __init__(self, parent = None):
-    #ScriptedLoadableModuleLogic.__init__(self, parent)
-    #self.editPaint = EditorLib.PaintEffectOptions()
 
-  # global variables for initial mask
-  maskZ = 0
-  centroidX = 0
-  centroidY = 0
-  mean = 0
-  std = 0
+  def __init__(self, parent = None):
+    ScriptedLoadableModuleLogic.__init__(self, parent)
+    # global variables for initial mask
+    self.maskZ = 0
+    self.centroidX = 0
+    self.centroidY = 0
+    self.mean = 0
+    self.std = 0
 
   def getMeanSD(self):
-    global mean, std
-    return mean, std
+    return self.mean, self.std
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -426,7 +438,8 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     slicer.app.applicationLogic().PropagateVolumeSelection(0)
 
     return merge
-    
+
+  # get all the info out of the initial user mask
   def runMask(self,masterNode,labelNode):
     """
     Run things in 2D, stuff with the mask
@@ -445,18 +458,16 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     # TODO: compare dimensions to check they match
  
     intensitiesInsideOriginal = []
-    #intensitiesInsideGradient = []
     # find the levels where there are annotations
     for i in range(0,labelArray.shape[0]):
       if numpy.max(labelArray[i,:,:]) == 1: # looking for green, which is label 1
         print('in z:', i)
-        global maskZ
-        maskZ = i
+        #global maskZ
+        self.maskZ = i
         # send the array of the one level
         annotatedSlice = masterArray[i,:,:]
         array = labelArray[i,:,:]            
         isinside = ParLib.Algorithms.segment(array, 1) # call function "segment"
-        # print isinside
         # modify the label map to show what pixels are said to be inside the circle / mask
         for j in range(0,isinside.shape[0]):
           for k in range(0,isinside.shape[1]):
@@ -464,7 +475,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
               labelArray[i,j,k] = 1
               # get all the intensities from the actual + modified image
               intensitiesInsideOriginal.append(masterArray[i,j,k])
-              #intensitiesInsideGradient.append(gradientArray[i,j,k])
 
     # uint8 (0-255) ok for binary image, but cannot trust all images will stay within those bounds (ct/mri images can be encoded +/- numbers)?
     invert = (isinside == 0).astype('uint8')   
@@ -475,26 +485,25 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     shapefilter.Execute(roi)
     centroid = shapefilter.GetCentroid(1)
     print('centroid:', centroid)
-    global centroidX
-    global centroidY
-    centroidX = int(centroid[0])
-    centroidY = int(centroid[1])
+    #global centroidX
+    #global centroidY
+    self.centroidX = int(centroid[0])
+    self.centroidY = int(centroid[1])
     
     meanOriginal = numpy.mean(intensitiesInsideOriginal[:])
     print('mean:', meanOriginal)
     stdOriginal = numpy.std(intensitiesInsideOriginal[:])
     print('standard deviation:', stdOriginal)
-    global mean, std
-    mean = meanOriginal
-    std = stdOriginal
+    #global mean, std
+    self.mean = meanOriginal
+    self.std = stdOriginal
     
-    #masterNode.Modified()
     labelNode.Modified()
                    
     self.delayDisplay('Mask done')
 
-    
-  def runThreshold(self,masterNode,labelNode):
+  # use thresholding to get basic segmentation  
+  def runThreshold(self,masterNode,labelNode,lowerThresh,upperThresh):
 
     masterImage = sitkUtils.PullFromSlicer(masterNode.GetID())
 
@@ -502,63 +511,46 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     masterArray = slicer.util.array(masterNode.GetID())
       
     connectedThresholdIF = SimpleITK.ConnectedThresholdImageFilter()
-    connectedThresholdIF.SetLower(mean-(1.5*std))
-    connectedThresholdIF.SetUpper(mean+(1.5*std)) 
+    # set these numbers based on range slider
+    connectedThresholdIF.SetLower(int(lowerThresh)) 
+    connectedThresholdIF.SetUpper(int(upperThresh))
+    print("lowerThresh: ", int(lowerThresh), " upperThresh: ", int(upperThresh))
 
-    print('Centroid:', int(centroidX), int(centroidY) )
-    connectedThresholdIF.SetSeed([int(centroidX),int(centroidY),maskZ])
+    print('Centroid:', int(self.centroidX), int(self.centroidY) )
+    print(masterArray[int(self.centroidX),int(self.centroidY),self.maskZ])
+    connectedThresholdIF.SetSeed([int(self.centroidX),int(self.centroidY),self.maskZ])
     print('starting: connected threshold filter')
     thresholdImage = connectedThresholdIF.Execute(masterImage)
 
-    # take this out for now, as time costly and may be best to close holes in 2D
+    # take this out for now, as time costly and may be best to close holes in 2D later
     '''
     print('starting: fill holes filter')
     fillHoleIF = SimpleITK.GrayscaleFillholeImageFilter()
     connectedImage = fillHoleIF.Execute(thresholdImage)
     '''
-    
     sitkUtils.PushToSlicer(thresholdImage, 'connectedImage')
-    sitkUtils.PushLabel(thresholdImage, 'connectedImage')
+    #sitkUtils.PushLabel(thresholdImage, 'connectedImage')
+
+  def runFindLiver2D(self, emptyLabelNode):
     
-    '''
-    print('copying the connected image to the label')
-    connectedArray = SimpleITK.GetArrayFromImage(connectedImage)
-    for i in range(0, labelArray.shape[0]):
-      for j in range(0,labelArray.shape[1]):
-        for k in range(0,labelArray.shape[2]):
-          if connectedArray[i,j,k] == 1:
-            labelArray[i,j,k] = 1
-          else:
-            labelArray[i,j,k] = 0
-    '''
+    labelArray = slicer.util.array(emptyLabelNode.GetID())
+    connectedNode = slicer.util.getNode('connectedImage')
+    connectedArray = slicer.util.array(connectedNode.GetID())
 
-  def runFindLiver2D(self,masterNode,labelNode):
-
-    labelArray = slicer.util.array(labelNode.GetID())
-    connectedArray = slicer.util.array(masterNode.GetID())
-
-    global maskZ
-    global centroidX
-    global centroidY
-
-    print('find liver 2D:', maskZ, centroidX, centroidY)
-    # grow in 2d to everything connected to that point that is segmented
+    print('find liver 2D:', self.maskZ, self.centroidX, self.centroidY)
+    # grow in 2d to everything connected to the point that is connected to original centroid / mask
     
-    #regionGrow2D(self, z,x,y, newLabel, eraseLabel, labelArray):
-    tempArray = ParLib.Algorithms.connected2D(maskZ, centroidY, centroidX, labelArray, connectedArray)
+    tempArray = ParLib.Algorithms.connected2D(self.maskZ, self.centroidY, self.centroidX, labelArray, connectedArray)
     tempImage = SimpleITK.GetImageFromArray(tempArray)
+    tempImage.SetOrigin(emptyLabelNode.GetOrigin())
+    tempImage.SetSpacing(emptyLabelNode.GetSpacing())
     sitkUtils.PushToSlicer(tempImage, 'liver')
-    
-    #tempImage = SimpleITK.GetImageFromArray(labelArray)
-    #sitkUtils.PushToSlicer(tempImage, 'liverLabel')
-    # put this in the label map liverNode
-    
         
   # gradient filter
   def runGradient(self, masterNode):
 
-    global mean
-    global std
+    #global mean
+    #global std
 
     tempImage = sitkUtils.PullFromSlicer(masterNode.GetID())
     print('origin of original image:', tempImage.GetOrigin())
@@ -586,13 +578,13 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
 
     for j in range(1, tempArray.shape[1]-2): # X
       for k in range(1, tempArray.shape[2]-2): # Y
-        gradientArray[:,j,k] = numpy.sum(numpy.sum(numpy.abs(tempArray[:, j-2:j+2, k-2:k+2] - mean), axis=2), axis=1) / 9
+        gradientArray[:,j,k] = numpy.sum(numpy.sum(numpy.abs(tempArray[:, j-2:j+2, k-2:k+2] - self.mean), axis=2), axis=1) / 9
 
     gradientImage = SimpleITK.GetImageFromArray(gradientArray)
     gradientImage.SetOrigin(tempImage.GetOrigin())
     gradientImage.SetSpacing(tempImage.GetSpacing())
     sitkUtils.PushToSlicer(gradientImage, 'gradientImage')
-    print('Done sergio gradient')   
+    print('Done sergio gradient')
     
 
   # re-implementation of sergio's

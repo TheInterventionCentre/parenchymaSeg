@@ -104,6 +104,7 @@ def regionGrow2D(z,x,y, newLabel, eraseLabel, labelArray):
 
   return segmentedInside
 
+# grow in 2D and then copy to label (baseArray is connectedThreshold or mask)
 def copyGrow2D(z,x,y, labelArray, baseArray):
 
   labelArray[z,x,y] = 1
@@ -122,42 +123,42 @@ def copyGrow2D(z,x,y, labelArray, baseArray):
     # get the latest pixel
     z,x,y = pixels.pop()
     # grow out to everything connected to this
-    if baseArray[z,x+1,y] > 0 and labelArray[z,x+1,y] != 1:
+    if baseArray[z,x+1,y] > 0 and labelArray[z,x+1,y] == 0:
       labelArray[z,x+1,y] = 1
       segmentedInside[x+1,y] = 1
       pixels.append([z,x+1,y])
-    if baseArray[z,x-1,y] > 0 and labelArray[z,x-1,y] != 1:
+    if baseArray[z,x-1,y] > 0 and labelArray[z,x-1,y] == 0:
       labelArray[z,x-1,y] = 1
       segmentedInside[x-1,y] = 1
       pixels.append([z,x-1,y])
-    if baseArray[z,x,y+1] > 0 and labelArray[z,x,y+1] != 1:
+    if baseArray[z,x,y+1] > 0 and labelArray[z,x,y+1] == 0:
       labelArray[z,x,y+1] = 1
       segmentedInside[x,y+1] = 1
       pixels.append([z,x,y+1])
-    if baseArray[z,x,y-1] > 0 and labelArray[z,x,y-1] != 1:
+    if baseArray[z,x,y-1] > 0 and labelArray[z,x,y-1] == 0:
       labelArray[z,x,y-1] = 1
       segmentedInside[x,y-1] = 1
       pixels.append([z,x,y-1])
-    if baseArray[z,x+1,y+1] > 0 and labelArray[z,x+1,y+1] != 1:
+    if baseArray[z,x+1,y+1] > 0 and labelArray[z,x+1,y+1] == 0:
       labelArray[z,x+1,y+1] = 1
       segmentedInside[x+1,y+1] = 1
       pixels.append([z,x+1,y+1])
-    if baseArray[z,x-1,y-1] > 0 and labelArray[z,x-1,y-1] != 1:
+    if baseArray[z,x-1,y-1] > 0 and labelArray[z,x-1,y-1] == 0:
       labelArray[z,x-1,y-1] = 1
       segmentedInside[x-1,y-1] = 1
       pixels.append([z,x-1,y-1])
-    if baseArray[z,x+1,y-1] > 0 and labelArray[z,x+1,y-1] != 1:
+    if baseArray[z,x+1,y-1] > 0 and labelArray[z,x+1,y-1] == 0:
       labelArray[z,x+1,y-1] = 1
       segmentedInside[x+1,y-1] = 1
       pixels.append([z,x+1,y-1])
-    if baseArray[z,x-1,y+1] > 0 and labelArray[z,x-1,y+1] != 1:
+    if baseArray[z,x-1,y+1] > 0 and labelArray[z,x-1,y+1] == 0:
       labelArray[z,x-1,y+1] = 1
       segmentedInside[x-1,y+1] = 1
       pixels.append([z,x-1,y+1])
 
   return segmentedInside
 
-     
+# loop through the slices, to find the areas connected in 2D to initial mask    
 def connected2D(z,x,y, labelArray, connectedArray):
 
   print('called connected2d:', z, x, y)
@@ -167,54 +168,34 @@ def connected2D(z,x,y, labelArray, connectedArray):
   centroidY = y
 
   # start by getting the segmentation where the mask was drawn
-  maskLevel = copyGrow2D(maskZ,centroidX,centroidY, labelArray, connectedArray)
+  copyGrow2D(maskZ,centroidX,centroidY, labelArray, connectedArray)
   print('after initial region grow, connected2d:', maskZ, centroidX, centroidY )
 
   for z in range(maskZ+1, labelArray.shape[0]):
     print('mask:', z)
     for x in range(0,labelArray.shape[1]):
       for y in range(0,labelArray.shape[2]):
-        # first step out
-        if z == maskZ+1:
-          if maskLevel[x,y] == 1:
-            # check if label array is already included (have already grown into it)
-            if labelArray[z,x,y] != 1:
-              # then check if connected array is a part of segmented area
-              if connectedArray[z,x,y] == 1:
-                # add it and grow in 2D
-                copyGrow2D(z,x,y,labelArray, connectedArray)
-        # not the first step out
-        else: 
-          if labelArray[z-1,x,y] == 1:
-            # check if label array is already included (have already grown into it)
-            if labelArray[z,x,y] != 1:
-              # then check if connected array is a part of segmented area
-              if connectedArray[z,x,y] == 1:
-                # add it and grow in 2D
-                copyGrow2D(z,x,y,labelArray, connectedArray)
+        # check if pixel is included in last slice
+        if labelArray[z-1,x,y] == 1:
+          # check if label array is already included (have already grown into it)
+          if labelArray[z,x,y] == 0:
+            # then check if connected array is a part of segmented area
+            if connectedArray[z,x,y] == 1:
+              # add it and grow in 2D
+              copyGrow2D(z,x,y,labelArray, connectedArray)
             
   for z in range(maskZ-1, -1, -1):
     print('mask:', z)
     for x in range(0,labelArray.shape[1]):
       for y in range(0,labelArray.shape[2]):
-        # first step out
-        if z == maskZ-1:
-          if maskLevel[x,y] == 1:
-            # check if label array is already included (have already grown into it)
-            if labelArray[z,x,y] != 1:
-              # then check if connected array is a part of segmented area
-              if connectedArray[z,x,y] == 1:
-                # add it and grow in 2D
-                copyGrow2D(z,x,y,labelArray, connectedArray)
-        # not the first step out
-        else: 
-          if labelArray[z+1,x,y] == 1:
-            # check if label array is already included (have already grown into it)
-            if labelArray[z,x,y] != 1:
-              # then check if connected array is a part of segmented area
-              if connectedArray[z,x,y] == 1:
-                # add it and grow in 2D
-                copyGrow2D(z,x,y,labelArray, connectedArray)
+        # check if pixel is included in last slice
+        if labelArray[z+1,x,y] == 1:
+          # check if label array is already included (have already grown into it)
+          if labelArray[z,x,y] == 0:
+            # then check if connected array is a part of segmented area
+            if connectedArray[z,x,y] == 1:
+              # add it and grow in 2D
+              copyGrow2D(z,x,y,labelArray, connectedArray)
 
   print('end connected2D')
   return labelArray
