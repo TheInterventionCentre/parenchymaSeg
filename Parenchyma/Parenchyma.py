@@ -353,9 +353,6 @@ class ParenchymaWidget(ScriptedLoadableModuleWidget):
 
   def onRemoveIsolatedButton(self):
     self.logic.runRemoveIsolated(self.masterNode, self.labelNode)
-      
-  def onEdgeButton(self):
-    self.logic.runFindEdge(self.masterNode, self.labelNode)
 
   ## function to get the max / min values of the image to have the right scale for the range slider
   def getLoHiImageValues(self):
@@ -541,11 +538,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     # grow in 2d to everything connected to the point that is connected to original centroid / mask
     
     tempArray = ParLib.Algorithms.connected2D(self.maskZ, self.centroidY, self.centroidX, labelArray, connectedArray)
-    tempImage = SimpleITK.GetImageFromArray(tempArray)
-    tempImage.SetOrigin(emptyLabelNode.GetOrigin())
-    tempImage.SetSpacing(emptyLabelNode.GetSpacing())
-    sitkUtils.PushToSlicer(tempImage, 'liver')
-        
+   
   # gradient filter
   def runGradient(self, masterNode):
 
@@ -586,7 +579,6 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     sitkUtils.PushToSlicer(gradientImage, 'gradientImage')
     print('Done sergio gradient')
     
-
   # re-implementation of sergio's
   def runCrossRemove(self, masterNode, labelNode, size_c):
 
@@ -693,23 +685,23 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
            
     self.delayDisplay('Correction mask done')
 
-  def grow2DCentroid(self, labelArray, maskZ, centX, centY):
+  def grow2DCentroid(self, labelArray,  mZ, centX, centY):
 
     newLabel = 4
-    print('called grow 2d centroid:', maskZ, centX, centY)
+    print('called grow 2d centroid:', mZ, centX, centY)
     # flip them for label map?
     superiorCentX = centY
     superiorCentY = centX
     inferiorCentX = centY
     inferiorCentY = centX
     
-    if labelArray[maskZ, centY, centX] > 0:
-      eraseLabel = labelArray[maskZ,centY,centX]
+    if labelArray[mZ, centX, centY] > 0:
+      eraseLabel = labelArray[mZ, centX, centY]
       # z,x,y, newLabel, eraseLabel, labelArray
       # erase the mask
-      iArray = ParLib.Algorithms.regionGrow2D(maskZ, centY, centX, 0, eraseLabel, labelArray)
+      iArray = ParLib.Algorithms.regionGrow2D(mZ, centX, centY, 0, eraseLabel, labelArray)
     
-    for i in range(maskZ+1,labelArray.shape[0]): # move superior
+    for i in range(mZ+1,labelArray.shape[0]): # move superior
       isConnected = False
       if labelArray[i,superiorCentX,superiorCentY] > 0: # check if still in segmented area
         eraseLabel = labelArray[i,superiorCentX,superiorCentY]
@@ -737,7 +729,7 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
       superiorCentY = int(centroid[0])
       superiorcentX = int(centroid[1])
 
-    for i in range(maskZ-1,0,-1): # move inferior
+    for i in range(mZ-1,0,-1): # move inferior
       isConnected = False
       if labelArray[i,inferiorCentX,inferiorCentY] > 0: # check if still in segmented area
         eraseLabel = labelArray[i,inferiorCentX,inferiorCentY]
@@ -845,15 +837,12 @@ class ParenchymaLogic(ScriptedLoadableModuleLogic):
     masterArray = slicer.util.array(masterNode.GetID())
 
     # detect main region
-    global centroidX 
-    global centroidY
-    global maskZ
-    eraseLabel = labelArray[maskZ,centroidY,centroidX] # which way around should x and y be here?
+    eraseLabel = labelArray[self.maskZ,self.centroidY,self.centroidX] # which way around should x and y be here?
     newLabel = eraseLabel+1
     if(newLabel == 5):
       newLabel = 6 # skip the red for corrections
-    print('called region grow 3d:', maskZ)
-    labelArray = ParLib.Algorithms.regionGrow3D(maskZ, centroidY, centroidX, newLabel, eraseLabel, labelArray)
+    print('called region grow 3d:', self.maskZ)
+    labelArray = ParLib.Algorithms.regionGrow3D(self.maskZ, self.centroidY, self.centroidX, newLabel, eraseLabel, labelArray)
 
     # delete everything in the label other than newLabel
     print('removing unconnected')

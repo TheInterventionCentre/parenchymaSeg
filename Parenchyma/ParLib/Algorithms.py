@@ -199,68 +199,7 @@ def connected2D(z,x,y, labelArray, connectedArray):
 
   print('end connected2D')
   return labelArray
-
-    
-def runFindEdge(masterNode,labelNode):
-
-  # get the image
-  masterArray = slicer.util.array(masterNode.GetID())
-  labelArray = slicer.util.array(labelNode.GetID())
-  
-  # loop through the slice (z)
-  for z in range(0,labelArray.shape[0]):
-    label = 20
-    print('in layer', z)
-    # look for connected areas in 2D plane
-    for x in range(0,labelArray.shape[1]):
-      for y in range(0,labelArray.shape[2]):
-        if labelArray[z,x,y] < 20:
-          self.regionGrow2D(z,x,y, label, labelArray)
-          print('called region grow', label)
-          label = label+1
-
-        '''
-        # loop over the 1 colour region to find edges
-        # in y direction (downsampling by only taking every 5th)
-        for x in range(0,labelArray.shape[1],5):
-          keepMax = 0
-          keepMin = labelArray.shape[2]-1
-            for y in range(0,labelArray.shape[2],5):
-            if labelArray[z,x,y] == label-1:
-              # trying to find the largest and smallest y in each "line"
-                if y > keepMax:
-                  keepMax = y
-                if y < keepMin:
-                  keepMin = y
-                # annotate the max / min
-                if keepMax != 0:
-                  labelArray[z,x,keepMax] = 17
-                  print('Point y: ', keepMax)
-                if keepMin != labelArray.shape[2]-1:
-                  labelArray[z,x,keepMin] = 17
-                  print('Point y: ', keepMin)
-            # in x direction (downsampling by only taking every 5th)
-            for y in range(0,labelArray.shape[2],5):
-              keepMax = 0
-              keepMin = labelArray.shape[1]-1
-              for x in range(0,labelArray.shape[1],5):
-                if labelArray[z,x,y] == label-1:
-                  # trying to find the largest and smallest x in each "line"
-                  if x > keepMax:
-                    keepMax = x
-                  if x < keepMin:
-                    keepMin = x
-                # annotate the max / min
-                if keepMax != 0:
-                  labelArray[z,keepMax,y] = 17
-                  print('Point x: ', keepMax)
-                if keepMin != labelArray.shape[1]-1:
-                  labelArray[z,keepMin,y] = 17
-                  print('Point x: ', keepMin)
-        '''
-
-
-                      
+                     
 
 def segment(array, searchLabel):
 
